@@ -167,6 +167,7 @@ class RarFile(object):
             error = rarinfo.filename if rarinfo else self.filename
         finally:
             self._close(handle)
+        return error
 
     def extract(self, member, path=None, pwd=None):
         """Extract a member from the archive to the current working directory,
