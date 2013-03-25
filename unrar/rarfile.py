@@ -2,6 +2,7 @@
 # Author: Matías Bordese
 
 import ctypes
+import os
 import sys
 
 from unrar import constants
@@ -177,7 +178,12 @@ class RarFile(object):
         """
         if isinstance(member, RarInfo):
             member = member.filename
+
+        if path is None:
+            path = os.getcwd()
+
         self._extract_members([member], path, pwd)
+        return os.path.join(path, member)
 
     def extractall(self, path=None, members=None, pwd=None):
         """Extract all members from the archive to the current working
