@@ -1,0 +1,4 @@
+include LICENSE.txt
+include README.md
+include unrar/tests/*.rar
+include docs/*
