@@ -245,7 +245,7 @@ def main(args=None):
             rarfile.py -e rarfile.rar target # Extract rarfile into target dir
         """)
 
-    valid_args = {'-l': 2, '-e': 3, '-t':2}
+    valid_args = {'-l': 2, '-e': 3, '-t': 2}
     if args is None:
         args = sys.argv[1:]
 

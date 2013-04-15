@@ -42,7 +42,7 @@ class TestIsRarFile(unittest.TestCase):
 
     def test_no_exists_israrfile(self):
         another_file = os.path.join(TESTS_DIR, 'foo.rar')
-        self.assertFalse(is_rarfile(another_file))    
+        self.assertFalse(is_rarfile(another_file))
 
 
 class TestRarFile(unittest.TestCase):
@@ -72,7 +72,7 @@ class TestRarFile(unittest.TestCase):
     def test_getinfo_no_file(self):
         with self.assertRaises(KeyError) as ctx:
             self.rar.getinfo('foo.txt')
-        
+
         self.assertEqual(
             ctx.exception.message,
             "There is no item named 'foo.txt' in the archive")
@@ -99,7 +99,6 @@ class TestRarFile(unittest.TestCase):
             extracted_data = extracted_file.read()
             self.assertEqual(extracted_data, "This is for test.")
 
-    # printdir
 
 class TestPasswordRarFile(TestRarFile):
 

@@ -32,7 +32,7 @@ __all__ = ["RAROpenArchiveDataEx", "RARHeaderDataEx", "RAROpenArchiveEx",
 lib_path = os.environ.get('UNRAR_LIB_PATH', None)
 
 # find and load unrar library
-unrarlib = None    
+unrarlib = None
 if platform.system() == 'Windows':
     from ctypes.wintypes import HANDLE as WIN_HANDLE
     HANDLE = WIN_HANDLE
@@ -91,15 +91,17 @@ class RAROpenArchiveDataEx(_Structure):
                 ('CmtSize', ctypes.c_uint),
                 ('CmtState', ctypes.c_uint),
                 ('Flags', ctypes.c_uint),
-                ('Reserved', ctypes.c_uint*32),
+                ('Reserved', ctypes.c_uint * 32),
                ]
 
     def __init__(self, filename, mode=constants.RAR_OM_LIST):
         # comments buffer, max 64kb
-        self.CmtBuf = ctypes.create_string_buffer('', 64*1024)
-        super(RAROpenArchiveDataEx, self).__init__(ArcName=None,
+        self.CmtBuf = ctypes.create_string_buffer('', 64 * 1024)
+        super(RAROpenArchiveDataEx, self).__init__(
+            ArcName=None,
             ArcNameW=filename, OpenMode=mode,
-            _CmtBuf=ctypes.addressof(self.CmtBuf), CmtBufSize=ctypes.sizeof(self.CmtBuf))
+            _CmtBuf=ctypes.addressof(self.CmtBuf),
+            CmtBufSize=ctypes.sizeof(self.CmtBuf))
 
     def __str__(self):
         return self.ArcNameW
@@ -108,10 +110,10 @@ class RAROpenArchiveDataEx(_Structure):
 class RARHeaderDataEx(_Structure):
     """Rar file header structure."""
     _fields_ = [
-                ('ArcName', ctypes.c_char*1024),
-                ('ArcNameW', ctypes.c_wchar*1024),
-                ('FileName', ctypes.c_char*1024),
-                ('FileNameW', ctypes.c_wchar*1024),
+                ('ArcName', ctypes.c_char * 1024),
+                ('ArcNameW', ctypes.c_wchar * 1024),
+                ('FileName', ctypes.c_char * 1024),
+                ('FileNameW', ctypes.c_wchar * 1024),
                 ('Flags', ctypes.c_uint),
                 ('PackSize', ctypes.c_uint),
                 ('PackSizeHigh', ctypes.c_uint),
@@ -127,12 +129,12 @@ class RARHeaderDataEx(_Structure):
                 ('CmtBufSize', ctypes.c_uint),
                 ('CmtSize', ctypes.c_uint),
                 ('CmtState', ctypes.c_uint),
-                ('Reserved', ctypes.c_uint*1024),
+                ('Reserved', ctypes.c_uint * 1024),
                ]
 
     def __init__(self):
         # comments buffer, max 64kb
-        self.CmtBuf = ctypes.create_string_buffer('', 64*1024)
+        self.CmtBuf = ctypes.create_string_buffer('', 64 * 1024)
         super(RARHeaderDataEx, self).__init__(
             _CmtBuf=ctypes.addressof(self.CmtBuf),
             CmtBufSize=ctypes.sizeof(self.CmtBuf))
