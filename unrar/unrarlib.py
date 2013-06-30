@@ -82,21 +82,21 @@ class _Structure(ctypes.Structure):
 class RAROpenArchiveDataEx(_Structure):
     """Rar compressed file structure."""
     _fields_ = [
-                ('ArcName', ctypes.c_char_p),
-                ('ArcNameW', ctypes.c_wchar_p),
-                ('OpenMode', ctypes.c_uint),
-                ('OpenResult', ctypes.c_uint),
-                ('_CmtBuf', ctypes.c_void_p),
-                ('CmtBufSize', ctypes.c_uint),
-                ('CmtSize', ctypes.c_uint),
-                ('CmtState', ctypes.c_uint),
-                ('Flags', ctypes.c_uint),
-                ('Reserved', ctypes.c_uint * 32),
-               ]
+        ('ArcName', ctypes.c_char_p),
+        ('ArcNameW', ctypes.c_wchar_p),
+        ('OpenMode', ctypes.c_uint),
+        ('OpenResult', ctypes.c_uint),
+        ('_CmtBuf', ctypes.c_void_p),
+        ('CmtBufSize', ctypes.c_uint),
+        ('CmtSize', ctypes.c_uint),
+        ('CmtState', ctypes.c_uint),
+        ('Flags', ctypes.c_uint),
+        ('Reserved', ctypes.c_uint * 32),
+    ]
 
     def __init__(self, filename, mode=constants.RAR_OM_LIST):
         # comments buffer, max 64kb
-        self.CmtBuf = ctypes.create_string_buffer('', 64 * 1024)
+        self.CmtBuf = ctypes.create_string_buffer(b'', 64 * 1024)
         super(RAROpenArchiveDataEx, self).__init__(
             ArcName=None,
             ArcNameW=filename, OpenMode=mode,
@@ -110,31 +110,31 @@ class RAROpenArchiveDataEx(_Structure):
 class RARHeaderDataEx(_Structure):
     """Rar file header structure."""
     _fields_ = [
-                ('ArcName', ctypes.c_char * 1024),
-                ('ArcNameW', ctypes.c_wchar * 1024),
-                ('FileName', ctypes.c_char * 1024),
-                ('FileNameW', ctypes.c_wchar * 1024),
-                ('Flags', ctypes.c_uint),
-                ('PackSize', ctypes.c_uint),
-                ('PackSizeHigh', ctypes.c_uint),
-                ('UnpSize', ctypes.c_uint),
-                ('UnpSizeHigh', ctypes.c_uint),
-                ('HostOS', ctypes.c_uint),
-                ('FileCRC', ctypes.c_uint),
-                ('FileTime', ctypes.c_uint),
-                ('UnpVer', ctypes.c_uint),
-                ('Method', ctypes.c_uint),
-                ('FileAttr', ctypes.c_uint),
-                ('_CmtBuf', ctypes.c_void_p),
-                ('CmtBufSize', ctypes.c_uint),
-                ('CmtSize', ctypes.c_uint),
-                ('CmtState', ctypes.c_uint),
-                ('Reserved', ctypes.c_uint * 1024),
-               ]
+        ('ArcName', ctypes.c_char * 1024),
+        ('ArcNameW', ctypes.c_wchar * 1024),
+        ('FileName', ctypes.c_char * 1024),
+        ('FileNameW', ctypes.c_wchar * 1024),
+        ('Flags', ctypes.c_uint),
+        ('PackSize', ctypes.c_uint),
+        ('PackSizeHigh', ctypes.c_uint),
+        ('UnpSize', ctypes.c_uint),
+        ('UnpSizeHigh', ctypes.c_uint),
+        ('HostOS', ctypes.c_uint),
+        ('FileCRC', ctypes.c_uint),
+        ('FileTime', ctypes.c_uint),
+        ('UnpVer', ctypes.c_uint),
+        ('Method', ctypes.c_uint),
+        ('FileAttr', ctypes.c_uint),
+        ('_CmtBuf', ctypes.c_void_p),
+        ('CmtBufSize', ctypes.c_uint),
+        ('CmtSize', ctypes.c_uint),
+        ('CmtState', ctypes.c_uint),
+        ('Reserved', ctypes.c_uint * 1024),
+    ]
 
     def __init__(self):
         # comments buffer, max 64kb
-        self.CmtBuf = ctypes.create_string_buffer('', 64 * 1024)
+        self.CmtBuf = ctypes.create_string_buffer(b'', 64 * 1024)
         super(RARHeaderDataEx, self).__init__(
             _CmtBuf=ctypes.addressof(self.CmtBuf),
             CmtBufSize=ctypes.sizeof(self.CmtBuf))
@@ -219,10 +219,20 @@ RARReadHeaderEx = _c_func(unrarlib.RARReadHeaderEx, ctypes.c_int,
 # the next file. Extract or test the current file from the archive
 # opened in RAR_OM_EXTRACT mode. If the mode RAR_OM_LIST is set,
 # then a call to this function will simply skip the archive position
-# to the next file. (unicode)
+# to the next file.
 RARProcessFile = _c_func(unrarlib.RARProcessFile, ctypes.c_int,
                          [HANDLE, ctypes.c_int, ctypes.c_char_p,
                           ctypes.c_char_p], _check_process_result)
+
+
+# Performs action and moves the current position in the archive to
+# the next file. Extract or test the current file from the archive
+# opened in RAR_OM_EXTRACT mode. If the mode RAR_OM_LIST is set,
+# then a call to this function will simply skip the archive position
+# to the next file. (unicode version)
+RARProcessFileW = _c_func(unrarlib.RARProcessFileW, ctypes.c_int,
+                          [HANDLE, ctypes.c_int, ctypes.c_wchar_p,
+                          ctypes.c_wchar_p], _check_process_result)
 
 
 # Close RAR archive and release allocated memory. It must be called when

@@ -15,6 +15,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from __future__ import print_function
+
 import ctypes
 import os
 import sys
@@ -24,6 +26,16 @@ from unrar import unrarlib
 
 
 __all__ = ["BadRarFile", "is_rarfile", "RarFile", "RarInfo"]
+
+
+if sys.version < '3':
+    def b(x):
+        return x
+else:
+    def b(x):
+        if x is not None:
+            # encode using DOS OEM standard
+            return x.encode('cp437')
 
 
 class BadRarFile(Exception):
@@ -46,18 +58,18 @@ class RarInfo(object):
     """Class with attributes describing each member in the RAR archive."""
 
     __slots__ = (
-            'filename',
-            'date_time',
-            'compress_type',
-            'comment',
-            'create_system',
-            'extract_version',
-            'flag_bits',
-            'CRC',
-            'compress_size',
-            'file_size',
-            '_raw_time',
-        )
+        'filename',
+        'date_time',
+        'compress_type',
+        'comment',
+        'create_system',
+        'extract_version',
+        'flag_bits',
+        'CRC',
+        'compress_size',
+        'file_size',
+        '_raw_time',
+    )
 
     def __init__(self, header):
         """Initialize a RarInfo object with a member header data."""
@@ -109,7 +121,7 @@ class RarFile(object):
 
     def _process_current(self, handle, op, dest_path=None, dest_name=None):
         """Process current member with 'op' operation."""
-        unrarlib.RARProcessFile(handle, op, dest_path, dest_name)
+        unrarlib.RARProcessFileW(handle, op, dest_path, dest_name)
 
     def _load_metadata(self, handle):
         """Load archive members metadata."""
@@ -144,7 +156,7 @@ class RarFile(object):
 
     def setpassword(self, pwd):
         """Set default password for encrypted files."""
-        self._pwd = pwd
+        self.pwd = pwd
 
     def getinfo(self, name):
         """Return the instance of RarInfo given 'name'."""
@@ -160,10 +172,11 @@ class RarFile(object):
 
     def printdir(self):
         """Print a table of contents for the RAR file."""
-        print "%-46s %19s %12s" % ("File Name", "Modified    ", "Size")
+        print("%-46s %19s %12s" % ("File Name", "Modified    ", "Size"))
         for rarinfo in self.filelist:
             date = "%d-%02d-%02d %02d:%02d:%02d" % rarinfo.date_time[:6]
-            print "%-46s %s %12d" % (rarinfo.filename, date, rarinfo.file_size)
+            print("%-46s %s %12d" % (
+                rarinfo.filename, date, rarinfo.file_size))
 
     def testrar(self):
         """Read all the files and check the CRC."""
@@ -172,6 +185,9 @@ class RarFile(object):
         archive = unrarlib.RAROpenArchiveDataEx(
             self.filename, mode=constants.RAR_OM_EXTRACT)
         handle = self._open(archive)
+
+        if self.pwd:
+            unrarlib.RARSetPassword(handle, b(self.pwd))
 
         try:
             rarinfo = self._read_header(handle)
@@ -219,7 +235,7 @@ class RarFile(object):
 
         password = pwd or self.pwd
         if password is not None:
-            unrarlib.RARSetPassword(handle, password)
+            unrarlib.RARSetPassword(handle, b(password))
 
         try:
             rarinfo = self._read_header(handle)
@@ -251,7 +267,7 @@ def main(args=None):
 
     cmd = args and args[0] or None
     if not cmd or cmd not in valid_args or len(args) != valid_args[cmd]:
-        print USAGE
+        print(USAGE)
         sys.exit(1)
 
     if cmd == '-l':
@@ -264,7 +280,7 @@ def main(args=None):
         err = rf.testrar()
         if err:
             print("The following enclosed file is corrupted: {!r}".format(err))
-        print "Done testing"
+        print("Done testing")
     elif cmd == '-e':
         # extract
         rf = RarFile(args[1], 'r')

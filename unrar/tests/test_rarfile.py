@@ -74,7 +74,7 @@ class TestRarFile(unittest.TestCase):
             self.rar.getinfo('foo.txt')
 
         self.assertEqual(
-            ctx.exception.message,
+            ctx.exception.args[0],
             "There is no item named 'foo.txt' in the archive")
 
     def test_infolist(self):
@@ -104,7 +104,7 @@ class TestPasswordRarFile(TestRarFile):
 
     def _open_rarfile(self):
         rar_filename = os.path.join(TESTS_DIR, 'test_password.rar')
-        rar = RarFile(rar_filename, pwd='testing')
+        rar = RarFile(rar_filename, pwd='password')
         return rar
 
 
@@ -113,7 +113,7 @@ class TestRarSetPasswordFile(TestRarFile):
     def _open_rarfile(self):
         rar_filename = os.path.join(TESTS_DIR, 'test_password.rar')
         rar = RarFile(rar_filename)
-        rar.setpassword('testing')
+        rar.setpassword('password')
         return rar
 
 
