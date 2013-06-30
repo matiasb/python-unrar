@@ -1,8 +1,9 @@
-
 python-unrar
 ============
 
 Work with RAR archive files through unrar library using ctypes.
+
+[![Build Status](https://travis-ci.org/matiasb/python-unrar.png?branch=master)](https://travis-ci.org/matiasb/python-unrar)
 
 
 Install UnRAR library
