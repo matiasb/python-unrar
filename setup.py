@@ -30,5 +30,5 @@ setup(
     author_email='mbordese@gmail.com',
     url='http://github.com/matiasb/python-unrar',
     license='GPL-3',
-    packages=find_packages(),
+    packages=['unrar'],
 )
