@@ -1,0 +1,11 @@
+
+0.2: 2013/08/23
+
+    - Updated RarFile to use unicode version of RARProcessFile.
+    - Added Python 3 support (Python 3.2, Python 3.3)
+    - Fixed PEP8 issues.
+
+
+0.1: 2013/04/15
+
+    - Initial version.
