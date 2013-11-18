@@ -18,7 +18,7 @@
 from setuptools import setup, find_packages
 
 
-version = __import__('unrar').VERSION
+version = __import__('unrar').__version__
 
 
 setup(
