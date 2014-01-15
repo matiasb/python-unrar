@@ -26,7 +26,8 @@ from unrar import constants
 
 __all__ = ["RAROpenArchiveDataEx", "RARHeaderDataEx", "RAROpenArchiveEx",
            "RARCloseArchive", "RARReadHeaderEx", "RARProcessFile",
-           "RARSetPassword", "RARGetDllVersion", "dostime_to_timetuple"]
+           "RARSetPassword", "RARGetDllVersion", "RARSetCallback",
+           "dostime_to_timetuple"]
 
 
 lib_path = os.environ.get('UNRAR_LIB_PATH', None)
@@ -36,15 +37,21 @@ unrarlib = None
 if platform.system() == 'Windows':
     from ctypes.wintypes import HANDLE as WIN_HANDLE
     HANDLE = WIN_HANDLE
+    UNRARCALLBACK = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_uint,
+        ctypes.c_long, ctypes.c_long, ctypes.c_long)
     lib_path = lib_path or find_library("unrar.dll")
     if lib_path:
         unrarlib = ctypes.WinDLL(lib_path)
+        
 else:
     # assume unix
     HANDLE = ctypes.c_void_p
+    UNRARCALLBACK = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_uint,
+        ctypes.c_long, ctypes.c_long, ctypes.c_long)
     lib_path = lib_path or find_library("unrar")
     if lib_path:
         unrarlib = ctypes.cdll.LoadLibrary(lib_path)
+
 
 if unrarlib is None:
     raise LookupError("Couldn't find path to unrar library.")
@@ -240,3 +247,7 @@ RARProcessFileW = _c_func(unrarlib.RARProcessFileW, ctypes.c_int,
 # due to an error.
 RARCloseArchive = _c_func(unrarlib.RARCloseArchive, ctypes.c_int, [HANDLE],
                           _check_close_result)
+
+
+# Set a user-defined callback function to process Unrar events.
+RARSetCallback = _c_func(unrarlib.RARSetCallback, ctypes.c_int, [HANDLE, UNRARCALLBACK, ctypes.c_long])
