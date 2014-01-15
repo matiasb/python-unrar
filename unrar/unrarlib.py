@@ -42,7 +42,6 @@ if platform.system() == 'Windows':
     lib_path = lib_path or find_library("unrar.dll")
     if lib_path:
         unrarlib = ctypes.WinDLL(lib_path)
-        
 else:
     # assume unix
     HANDLE = ctypes.c_void_p
@@ -51,7 +50,6 @@ else:
     lib_path = lib_path or find_library("unrar")
     if lib_path:
         unrarlib = ctypes.cdll.LoadLibrary(lib_path)
-
 
 if unrarlib is None:
     raise LookupError("Couldn't find path to unrar library.")
