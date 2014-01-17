@@ -248,4 +248,4 @@ RARCloseArchive = _c_func(unrarlib.RARCloseArchive, ctypes.c_int, [HANDLE],
 
 
 # Set a user-defined callback function to process Unrar events.
-RARSetCallback = _c_func(unrarlib.RARSetCallback, ctypes.c_int, [HANDLE, UNRARCALLBACK, ctypes.c_long])
+RARSetCallback = _c_func(unrarlib.RARSetCallback, None, [HANDLE, UNRARCALLBACK, ctypes.c_long])
