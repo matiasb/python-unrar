@@ -99,3 +99,9 @@ UCM_PROCESSDATA = 1
 UCM_NEEDPASSWORD = 2
 UCM_CHANGEVOLUMEW = 3
 UCM_NEEDPASSWORDW = 4
+
+#
+# Change volume callback message
+#
+RAR_VOL_ASK           0
+RAR_VOL_NOTIFY        1
