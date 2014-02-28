@@ -103,5 +103,5 @@ UCM_NEEDPASSWORDW = 4
 #
 # Change volume callback message
 #
-RAR_VOL_ASK           0
-RAR_VOL_NOTIFY        1
+RAR_VOL_ASK = 0
+RAR_VOL_NOTIFY = 1
