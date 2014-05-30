@@ -38,6 +38,24 @@ else:
             return x.encode('cp437')
 
 
+class PassiveReader:
+    """Used for reading files to memory"""
+    def __init__(self, usercallback = None):
+        self.buf = []
+        self.ucb = usercallback
+    
+    def _callback(self, msg, UserData, P1, P2):
+        if msg == constants.UCM_PROCESSDATA:
+            data = (ctypes.c_char*P2).from_address(P1).raw
+            if self.ucb!=None:
+                self.ucb(data)
+            else:
+                self.buf.append(data)
+        return 1
+    
+    def get_result(self):
+        return ''.join(self.buf)
+
 class BadRarFile(Exception):
     """RAR file error."""
 
@@ -199,6 +217,30 @@ class RarFile(object):
         finally:
             self._close(handle)
         return error
+
+    def read_files(self, member):
+        res = []
+        if isinstance(member, RarInfo):
+            member = member.filename
+        archive = unrarlib.RAROpenArchiveDataEx(self.filename, mode=constants.RAR_OM_EXTRACT)
+        handle = self._open(archive)
+        reader = PassiveReader()
+        c_callback = unrarlib.UNRARCALLBACK(reader._callback)
+        unrarlib.RARSetCallback(handle, c_callback, 1)
+        try:
+            rarinfo = self._read_header(handle)
+            while rarinfo is not None:
+                if rarinfo.filename in member:
+                    self._process_current(handle, constants.RAR_TEST)
+                else:
+                    self._process_current(handle, constants.RAR_SKIP)
+                rarinfo = self._read_header(handle)
+        except unrarlib.UnrarException:
+            raise BadRarFile("Bad RAR archive data.")
+        finally:
+            self._close(handle)
+        res.append((member, reader.get_result()))
+        return res
 
     def extract(self, member, path=None, pwd=None):
         """Extract a member from the archive to the current working directory,
