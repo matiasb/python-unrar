@@ -18,6 +18,7 @@
 from __future__ import print_function
 
 import ctypes
+import io
 import os
 import sys
 
@@ -88,6 +89,25 @@ class RarInfo(object):
             self.comment = None
 
 
+class _ReadIntoMemory(object):
+    """Internal class to handle in-memory extraction."""
+
+    def __init__(self):
+        super(_ReadIntoMemory, self).__init__()
+        self._data = None
+
+    def _callback(self, msg, user_data, p1, p2):
+        if msg == constants.UCM_PROCESSDATA:
+            if self._data is None:
+                self._data = b('')
+            chunk = (ctypes.c_char * p2).from_address(p1).raw
+            self._data += chunk
+        return 1
+
+    def get_bytes(self):
+        return io.BytesIO(self._data)
+
+
 class RarFile(object):
     """RAR archive file."""
 
@@ -146,6 +166,56 @@ class RarFile(object):
             unrarlib.RARCloseArchive(handle)
         except unrarlib.UnrarException:
             raise BadRarFile("RAR archive close error.")
+
+    def open(self, member, pwd=None):
+        """Return file-like object for 'member'.
+
+           'member' may be a filename or a RarInfo object.
+        """
+        if isinstance(member, RarInfo):
+            member = member.filename
+
+        archive = unrarlib.RAROpenArchiveDataEx(
+            self.filename, mode=constants.RAR_OM_EXTRACT)
+        handle = self._open(archive)
+
+        password = pwd or self.pwd
+        if password is not None:
+            unrarlib.RARSetPassword(handle, b(password))
+
+        # based on BrutuZ (https://github.com/matiasb/python-unrar/pull/4)
+        # and Cubixmeister work
+        data = _ReadIntoMemory()
+        c_callback = unrarlib.UNRARCALLBACK(data._callback)
+        unrarlib.RARSetCallback(handle, c_callback, 0)
+
+        try:
+            rarinfo = self._read_header(handle)
+            while rarinfo is not None:
+                if rarinfo.filename == member:
+                    self._process_current(handle, constants.RAR_TEST)
+                    break
+                else:
+                    self._process_current(handle, constants.RAR_SKIP)
+                rarinfo = self._read_header(handle)
+
+            if rarinfo is None:
+                data = None
+
+        except unrarlib.UnrarException:
+            raise BadRarFile("Bad RAR archive data.")
+        finally:
+            self._close(handle)
+
+        if data is None:
+            raise KeyError('There is no item named %r in the archive' % member)
+
+        # return file-like object
+        return data.get_bytes()
+
+    def read(self, member, pwd=None):
+        """Return file bytes (as a string) for name."""
+        return self.open(member, pwd).read()
 
     def namelist(self):
         """Return a list of file names in the archive."""

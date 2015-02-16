@@ -23,6 +23,7 @@ from unrar.rarfile import (
     BadRarFile,
     RarFile,
     RarInfo,
+    b,
     is_rarfile,
 )
 
@@ -99,6 +100,17 @@ class TestRarFile(unittest.TestCase):
             extracted_data = extracted_file.read()
             self.assertEqual(extracted_data, "This is for test.")
 
+    def test_extract_to_memory(self):
+        extracted_file = self.rar.open('test_file.txt')
+        extracted_data = extracted_file.read()
+        # data are bytes
+        self.assertEqual(extracted_data, b("This is for test."))
+
+    def test_read_to_memory(self):
+        extracted_data = self.rar.read('test_file.txt')
+        # data are bytes
+        self.assertEqual(extracted_data, b("This is for test."))
+
 
 class TestPasswordRarFile(TestRarFile):
 
@@ -135,3 +147,11 @@ class TestCorruptedRar(TestRarFile):
     def test_extractall(self):
         with self.assertRaises(BadRarFile):
             super(TestCorruptedRar, self).test_extractall()
+
+    def test_extract_to_memory(self):
+        with self.assertRaises(BadRarFile):
+            super(TestCorruptedRar, self).test_extract_to_memory()
+
+    def test_read_to_memory(self):
+        with self.assertRaises(BadRarFile):
+            super(TestCorruptedRar, self).test_read_to_memory()
