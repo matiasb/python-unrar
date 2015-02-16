@@ -54,6 +54,8 @@ Examples
     >>> info.date_time
     (2013L, 4L, 14L, 8L, 20L, 28L)
     >>> rar.extractall()
+    >>> rar.read('test_file.txt')
+    'This is for test.'
 
 
 Docs

@@ -1,3 +1,7 @@
+0.3: 2015/02/15
+
+    - Added open/read methods to RarFile, extracting data into memory.
+    - Added support for callbacks on unrar events.
 
 0.2: 2013/08/23
 
