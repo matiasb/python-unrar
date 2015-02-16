@@ -38,7 +38,8 @@ if platform.system() == 'Windows':
     from ctypes.wintypes import HANDLE as WIN_HANDLE
     HANDLE = WIN_HANDLE
     UNRARCALLBACK = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_uint,
-        ctypes.c_long, ctypes.c_long, ctypes.c_long)
+                                       ctypes.c_long, ctypes.c_long,
+                                       ctypes.c_long)
     lib_path = lib_path or find_library("unrar.dll")
     if lib_path:
         unrarlib = ctypes.WinDLL(lib_path)
@@ -46,7 +47,8 @@ else:
     # assume unix
     HANDLE = ctypes.c_void_p
     UNRARCALLBACK = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_uint,
-        ctypes.c_long, ctypes.c_long, ctypes.c_long)
+                                     ctypes.c_long, ctypes.c_long,
+                                     ctypes.c_long)
     lib_path = lib_path or find_library("unrar")
     if lib_path:
         unrarlib = ctypes.cdll.LoadLibrary(lib_path)
@@ -237,7 +239,7 @@ RARProcessFile = _c_func(unrarlib.RARProcessFile, ctypes.c_int,
 # to the next file. (unicode version)
 RARProcessFileW = _c_func(unrarlib.RARProcessFileW, ctypes.c_int,
                           [HANDLE, ctypes.c_int, ctypes.c_wchar_p,
-                          ctypes.c_wchar_p], _check_process_result)
+                           ctypes.c_wchar_p], _check_process_result)
 
 
 # Close RAR archive and release allocated memory. It must be called when
@@ -248,4 +250,5 @@ RARCloseArchive = _c_func(unrarlib.RARCloseArchive, ctypes.c_int, [HANDLE],
 
 
 # Set a user-defined callback function to process Unrar events.
-RARSetCallback = _c_func(unrarlib.RARSetCallback, None, [HANDLE, UNRARCALLBACK, ctypes.c_long])
+RARSetCallback = _c_func(unrarlib.RARSetCallback, None,
+                         [HANDLE, UNRARCALLBACK, ctypes.c_long])

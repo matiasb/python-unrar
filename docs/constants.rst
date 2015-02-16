@@ -55,3 +55,18 @@
 | :mod:`constants`.RAR_OS2 = 1
 | :mod:`constants`.RAR_WIN = 2
 | :mod:`constants`.RAR_UNIX = 3
+
+
+:strong:`Callback messages`
+
+| :mod:`constants`.UCM_CHANGEVOLUME = 0
+| :mod:`constants`.UCM_PROCESSDATA = 1
+| :mod:`constants`.UCM_NEEDPASSWORD = 2
+| :mod:`constants`.UCM_CHANGEVOLUMEW = 3
+| :mod:`constants`.UCM_NEEDPASSWORDW = 4
+
+
+:strong:`Change volume callback's messages`
+
+| :mod:`constants`.RAR_VOL_ASK = 0
+| :mod:`constants`.RAR_VOL_NOTIFY = 1

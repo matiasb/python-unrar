@@ -80,6 +80,24 @@ RarFile Objects
    Return a list of archive members by name.
 
 
+.. method:: RarFile.open(member[, pwd])
+
+   Extract a member from the archive as a file-like object
+   (see Python's :py:class:`io.BytesIO`).
+   *member* is the name of the file in the archive, or a :class:`RarInfo` object.
+   *pwd* is the password used for encrypted files.
+
+   .. versionadded:: 0.3
+
+
+.. method:: RarFile.read(name[, pwd])
+
+   Return the bytes of the file *member* in the archive.  *member* is the name of the
+   file in the archive, or a :class:`RarInfo` object. *pwd* is the password used for encrypted  files and, if specified, it will override the default password set with :meth:`setpassword`.
+
+   .. versionadded:: 0.3
+
+
 .. method:: RarFile.extract(member, path=None, pwd=None)
 
    Extract a member from the archive to the current working directory; *member*

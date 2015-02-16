@@ -124,10 +124,88 @@ The module defines the following items:
             Extract the current file and move to the next file.
             If the archive was opened with :mod:`constants`.RAR_OM_LIST mode,
             the operation is equal to :mod:`constants`.RAR_SKIP.
-    
+
 .. function:: RARSetPassword(handle, pwd)
 
     Set a password to decrypt files when processing.
+
+.. function:: RARSetCallback(handle, callback, user_data)
+
+    Set a user-defined callback function to process unrar events.
+
+    *callback* is a user-defined function, taking four parameters:
+
+        msg
+            Type of event.
+
+        user_data
+            User data passed to callback function.
+
+        P1, P2
+            Event dependent parameters.
+
+    You need to wrap your *callback* function to use the right calling convention;
+    for that you can use :mod:`unrarlib`.UNRARCALLBACK function, that will set
+    the correct argument types and return value for your OS.
+
+    Possible events:
+
+        :mod:`constants`.UCM_CHANGEVOLUME
+            Process volume change.
+                P1
+                    Points to the zero terminated name of the next volume.
+                P2
+                    The function call mode:
+                        :mod:`constants`.RAR_VOL_ASK
+                            Required volume is absent. The function should
+                            prompt user and return a positive value
+                            to retry or return -1 value to terminate 
+                            operation. The function may also specify a new 
+                            volume name, placing it to the address specified
+                            by P1 parameter. 
+
+                        :mod:`constants`.RAR_VOL_NOTIFY
+                            Required volume is successfully opened.
+                            This is a notification call and volume name
+                            modification is not allowed. The function should 
+                            return a positive value to continue or -1
+                            to terminate operation. 
+
+        :mod:`constants`.UCM_PROCESSDATA
+            Process unpacked data. It may be used to read
+            a file while it is being extracted or tested
+            without actual extracting file to disk.
+            Return a positive value to continue process
+            or -1 to cancel the archive operation
+
+            P1
+                Address pointing to the unpacked data.
+                Function may refer to the data but must not change it.
+
+            P2
+                Size of the unpacked data. It is guaranteed
+                only that the size will not exceed the maximum
+                dictionary size (4 Mb in RAR 3.0).
+
+        :mod:`constants`.UCM_NEEDPASSWORD
+            DLL needs a password to process archive.
+            This message must be processed if you wish
+            to be able to handle archives with encrypted
+            file names. It can be also used as replacement
+            of RARSetPassword function even for usual
+            encrypted files with non-encrypted names.
+
+            P1
+                Address pointing to the buffer for a password.
+                You need to copy a password here.
+
+            P2
+                Size of the password buffer.
+
+    Other functions of unrarlib should not be called from the callback function.
+    There is no return value.
+    For an example of using callbacks, you can check
+    :py:meth:`rarfile.RarFile.open` implementation.
 
 .. function:: RARGetDllVersion( )
 
