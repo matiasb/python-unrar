@@ -57,7 +57,12 @@ static inline void blake2s_increment_counter( blake2s_state *S, const uint32 inc
 /* init2 xors IV with input parameter block */
 void blake2s_init_param( blake2s_state *S, uint32 node_offset, uint32 node_depth)
 {
-  S->init(); // Clean and set pointers.
+#ifdef USE_SSE
+  if (_SSE_Version>=SSE_SSE2)
+    blake2s_init_sse();
+#endif
+
+  S->init(); // Clean data.
   for( int i = 0; i < 8; ++i )
     S->h[i] = blake2s_IV[i];
 

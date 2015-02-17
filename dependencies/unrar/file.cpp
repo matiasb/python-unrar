@@ -2,7 +2,7 @@
 
 File::File()
 {
-  hFile=BAD_HANDLE;
+  hFile=FILE_BAD_HANDLE;
   *FileName=0;
   NewFile=false;
   LastWrite=false;
@@ -22,7 +22,7 @@ File::File()
 
 File::~File()
 {
-  if (hFile!=BAD_HANDLE && !SkipClose)
+  if (hFile!=FILE_BAD_HANDLE && !SkipClose)
     if (NewFile)
       Delete();
     else
@@ -36,6 +36,7 @@ void File::operator = (File &SrcFile)
   NewFile=SrcFile.NewFile;
   LastWrite=SrcFile.LastWrite;
   HandleType=SrcFile.HandleType;
+  wcsncpyz(FileName,SrcFile.FileName,ASIZE(FileName));
   SrcFile.SkipClose=true;
 }
 
@@ -51,27 +52,40 @@ bool File::Open(const wchar *Name,uint Mode)
   uint Access=WriteMode ? GENERIC_WRITE:GENERIC_READ;
   if (UpdateMode)
     Access|=GENERIC_WRITE;
-  uint ShareMode=FILE_SHARE_READ;
+  uint ShareMode=(Mode & FMF_OPENEXCLUSIVE) ? 0 : FILE_SHARE_READ;
   if (OpenShared)
     ShareMode|=FILE_SHARE_WRITE;
   uint Flags=NoSequentialRead ? 0:FILE_FLAG_SEQUENTIAL_SCAN;
   hNewFile=CreateFile(Name,Access,ShareMode,NULL,OPEN_EXISTING,Flags,NULL);
 
   DWORD LastError;
-  if (hNewFile==BAD_HANDLE)
+  if (hNewFile==FILE_BAD_HANDLE)
   {
-    // Following CreateFile("\\?\path") call can change the last error code
-    // from "not found" to "access denied" for relative paths like "..\path".
-    // But we need the correct "not found" code to create a new archive
-    // if existing one is not found. So we preserve the code here.
     LastError=GetLastError();
 
     wchar LongName[NM];
     if (GetWinLongPath(Name,LongName,ASIZE(LongName)))
+    {
       hNewFile=CreateFile(LongName,Access,ShareMode,NULL,OPEN_EXISTING,Flags,NULL);
+
+      // For archive names longer than 260 characters first CreateFile
+      // (without \\?\) fails and sets LastError to 3 (access denied).
+      // We need the correct "file not found" error code to decide
+      // if we create a new archive or quit with "cannot create" error.
+      // So we need to check the error code after \\?\ CreateFile again,
+      // otherwise we'll fail to create new archives with long names.
+      // But we cannot simply assign the new code to LastError,
+      // because it would break "..\arcname.rar" relative names processing.
+      // First CreateFile returns the correct "file not found" code for such
+      // names, but "\\?\" CreateFile returns ERROR_INVALID_NAME treating
+      // dots as a directory name. So we check only for "file not found"
+      // error here and for other errors use the first CreateFile result.
+      if (GetLastError()==ERROR_FILE_NOT_FOUND)
+        LastError=ERROR_FILE_NOT_FOUND;
+    }
   }
 
-  if (hNewFile==BAD_HANDLE && LastError==ERROR_FILE_NOT_FOUND)
+  if (hNewFile==FILE_BAD_HANDLE && LastError==ERROR_FILE_NOT_FOUND)
     ErrorType=FILE_NOTFOUND;
 #else
   int flags=UpdateMode ? O_RDWR:(WriteMode ? O_WRONLY:O_RDONLY);
@@ -97,14 +111,23 @@ bool File::Open(const wchar *Name,uint Mode)
     return false;
   }
 #endif
-  hNewFile=handle==-1 ? BAD_HANDLE:fdopen(handle,UpdateMode ? UPDATEBINARY:READBINARY);
-  if (hNewFile==BAD_HANDLE && errno==ENOENT)
+  if (handle==-1)
+    hNewFile=FILE_BAD_HANDLE;
+  else
+  {
+#ifdef FILE_USE_OPEN
+    hNewFile=handle;
+#else
+    hNewFile=fdopen(handle,UpdateMode ? UPDATEBINARY:READBINARY);
+#endif
+  }
+  if (hNewFile==FILE_BAD_HANDLE && errno==ENOENT)
     ErrorType=FILE_NOTFOUND;
 #endif
   NewFile=false;
   HandleType=FILE_HANDLENORMAL;
   SkipClose=false;
-  bool Success=hNewFile!=BAD_HANDLE;
+  bool Success=hNewFile!=FILE_BAD_HANDLE;
   if (Success)
   {
     hFile=hNewFile;
@@ -144,9 +167,18 @@ bool File::Create(const wchar *Name,uint Mode)
   CreateMode=Mode;
   uint Access=WriteMode ? GENERIC_WRITE:GENERIC_READ|GENERIC_WRITE;
   DWORD ShareMode=ShareRead ? FILE_SHARE_READ:0;
-  hFile=CreateFile(Name,Access,ShareMode,NULL,CREATE_ALWAYS,0,NULL);
 
-  if (hFile==BAD_HANDLE)
+  // Windows automatically removes dots and spaces in the end of file name,
+  // So we detect such names and process them with \\?\ prefix.
+  wchar *LastChar=PointToLastChar(Name);
+  bool Special=*LastChar=='.' || *LastChar==' ';
+  
+  if (Special)
+    hFile=FILE_BAD_HANDLE;
+  else
+    hFile=CreateFile(Name,Access,ShareMode,NULL,CREATE_ALWAYS,0,NULL);
+
+  if (hFile==FILE_BAD_HANDLE)
   {
     wchar LongName[NM];
     if (GetWinLongPath(Name,LongName,ASIZE(LongName)))
@@ -156,13 +188,21 @@ bool File::Create(const wchar *Name,uint Mode)
 #else
   char NameA[NM];
   WideToChar(Name,NameA,ASIZE(NameA));
+#ifdef FILE_USE_OPEN
+  hFile=open(NameA,(O_CREAT|O_TRUNC) | (WriteMode ? O_WRONLY : O_RDWR));
+#ifdef _ANDROID
+  if (hFile==FILE_BAD_HANDLE)
+    hFile=JniCreateFile(Name); // If external card is read-only for usual file API.
+#endif
+#else
   hFile=fopen(NameA,WriteMode ? WRITEBINARY:CREATEBINARY);
+#endif
 #endif
   NewFile=true;
   HandleType=FILE_HANDLENORMAL;
   SkipClose=false;
   wcsncpyz(FileName,Name,ASIZE(FileName));
-  return hFile!=BAD_HANDLE;
+  return hFile!=FILE_BAD_HANDLE;
 }
 
 
@@ -179,7 +219,6 @@ bool File::WCreate(const wchar *Name,uint Mode)
 {
   if (Create(Name,Mode))
     return true;
-  ErrHandler.SetErrorCode(RARX_CREATE);
   ErrHandler.CreateErrorMsg(Name);
   return false;
 }
@@ -188,34 +227,30 @@ bool File::WCreate(const wchar *Name,uint Mode)
 bool File::Close()
 {
   bool Success=true;
-  if (HandleType!=FILE_HANDLENORMAL)
-    HandleType=FILE_HANDLENORMAL;
-  else
-    if (hFile!=BAD_HANDLE)
+
+  if (hFile!=FILE_BAD_HANDLE)
+  {
+    if (!SkipClose)
     {
-      if (!SkipClose)
-      {
 #ifdef _WIN_ALL
+      // We use the standard system handle for stdout in Windows
+      // and it must not  be closed here.
+      if (HandleType==FILE_HANDLENORMAL)
         Success=CloseHandle(hFile)==TRUE;
 #else
-        Success=fclose(hFile)!=EOF;
-#endif
-      }
-      hFile=BAD_HANDLE;
-      if (!Success && AllowExceptions)
-        ErrHandler.CloseError(FileName);
-    }
-  return Success;
-}
-
-
-void File::Flush()
-{
-#ifdef _WIN_ALL
-  FlushFileBuffers(hFile);
+#ifdef FILE_USE_OPEN
+      Success=close(hFile)!=-1;
 #else
-  fflush(hFile);
+      Success=fclose(hFile)!=EOF;
 #endif
+#endif
+    }
+    hFile=FILE_BAD_HANDLE;
+  }
+  HandleType=FILE_HANDLENORMAL;
+  if (!Success && AllowExceptions)
+    ErrHandler.CloseError(FileName);
+  return Success;
 }
 
 
@@ -223,7 +258,7 @@ bool File::Delete()
 {
   if (HandleType!=FILE_HANDLENORMAL)
     return false;
-  if (hFile!=BAD_HANDLE)
+  if (hFile!=FILE_BAD_HANDLE)
     Close();
   if (!AllowDelete)
     return false;
@@ -246,33 +281,30 @@ bool File::Rename(const wchar *NewName)
 }
 
 
-void File::Write(const void *Data,size_t Size)
+bool File::Write(const void *Data,size_t Size)
 {
   if (Size==0)
-    return;
-#ifndef _WIN_CE
-  if (HandleType!=FILE_HANDLENORMAL)
-    switch(HandleType)
+    return true;
+  if (HandleType==FILE_HANDLESTD)
+  {
+#ifdef _WIN_ALL
+    hFile=GetStdHandle(STD_OUTPUT_HANDLE);
+#else
+    // Cannot use the standard stdout here, because it already has wide orientation.
+    if (hFile==FILE_BAD_HANDLE)
     {
-      case FILE_HANDLESTD:
-#ifdef _WIN_ALL
-        hFile=GetStdHandle(STD_OUTPUT_HANDLE);
+#ifdef FILE_USE_OPEN
+      hFile=dup(STDOUT_FILENO); // Open new stdout stream.
 #else
-        hFile=stdout;
+      hFile=fdopen(dup(STDOUT_FILENO),"w"); // Open new stdout stream.
 #endif
-        break;
-      case FILE_HANDLEERR:
-#ifdef _WIN_ALL
-        hFile=GetStdHandle(STD_ERROR_HANDLE);
-#else
-        hFile=stderr;
-#endif
-        break;
     }
 #endif
+  }
+  bool Success;
   while (1)
   {
-    bool Success=false;
+    Success=false;
 #ifdef _WIN_ALL
     DWORD Written=0;
     if (HandleType!=FILE_HANDLENORMAL)
@@ -289,8 +321,13 @@ void File::Write(const void *Data,size_t Size)
     else
       Success=WriteFile(hFile,Data,(DWORD)Size,&Written,NULL)==TRUE;
 #else
+#ifdef FILE_USE_OPEN
+    ssize_t Written=write(hFile,Data,Size);
+    Success=Written==Size;
+#else
     int Written=fwrite(Data,1,Size,hFile);
     Success=Written==Size && !ferror(hFile);
+#endif
 #endif
     if (!Success && AllowExceptions && HandleType==FILE_HANDLENORMAL)
     {
@@ -304,7 +341,7 @@ void File::Write(const void *Data,size_t Size)
 #endif
       if (ErrHandler.AskRepeatWrite(FileName,false))
       {
-#ifndef _WIN_ALL
+#if !defined(_WIN_ALL) && !defined(FILE_USE_OPEN)
         clearerr(hFile);
 #endif
         if (Written<Size && Written>0)
@@ -316,6 +353,7 @@ void File::Write(const void *Data,size_t Size)
     break;
   }
   LastWrite=true;
+  return Success; // It can return false only if AllowExceptions is disabled.
 }
 
 
@@ -364,19 +402,23 @@ int File::DirectRead(void *Data,size_t Size)
   const size_t MaxDeviceRead=20000;
   const size_t MaxLockedRead=32768;
 #endif
-#ifndef _WIN_CE
   if (HandleType==FILE_HANDLESTD)
   {
 #ifdef _WIN_ALL
-    if (Size>MaxDeviceRead)
-      Size=MaxDeviceRead;
+//    if (Size>MaxDeviceRead)
+//      Size=MaxDeviceRead;
     hFile=GetStdHandle(STD_INPUT_HANDLE);
+#else
+#ifdef FILE_USE_OPEN
+    hFile=STDIN_FILENO;
 #else
     hFile=stdin;
 #endif
-  }
 #endif
+  }
 #ifdef _WIN_ALL
+  // For pipes like 'type file.txt | rar -si arcname' ReadFile may return
+  // data in small ~4KB blocks. It may slightly reduce the compression ratio.
   DWORD Read;
   if (!ReadFile(hFile,Data,(DWORD)Size,&Read,NULL))
   {
@@ -399,6 +441,12 @@ int File::DirectRead(void *Data,size_t Size)
   }
   return Read;
 #else
+#ifdef FILE_USE_OPEN
+  ssize_t ReadSize=read(hFile,Data,Size);
+  if (ReadSize==-1)
+    return -1;
+  return (int)ReadSize;
+#else
   if (LastWrite)
   {
     fflush(hFile);
@@ -409,6 +457,7 @@ int File::DirectRead(void *Data,size_t Size)
   if (ferror(hFile))
     return -1;
   return (int)ReadSize;
+#endif
 #endif
 }
 
@@ -422,7 +471,7 @@ void File::Seek(int64 Offset,int Method)
 
 bool File::RawSeek(int64 Offset,int Method)
 {
-  if (hFile==BAD_HANDLE)
+  if (hFile==FILE_BAD_HANDLE)
     return true;
   if (Offset<0 && Method!=SEEK_SET)
   {
@@ -436,12 +485,16 @@ bool File::RawSeek(int64 Offset,int Method)
     return false;
 #else
   LastWrite=false;
-#if defined(_LARGEFILE_SOURCE) && !defined(_OSF_SOURCE) && !defined(__VMS)
+#ifdef FILE_USE_OPEN
+  if (lseek64(hFile,Offset,Method)==-1)
+    return false;
+#elif defined(_LARGEFILE_SOURCE) && !defined(_OSF_SOURCE) && !defined(__VMS)
   if (fseeko(hFile,Offset,Method)!=0)
+    return false;
 #else
   if (fseek(hFile,(long)Offset,Method)!=0)
-#endif
     return false;
+#endif
 #endif
   return true;
 }
@@ -449,7 +502,7 @@ bool File::RawSeek(int64 Offset,int Method)
 
 int64 File::Tell()
 {
-  if (hFile==BAD_HANDLE)
+  if (hFile==FILE_BAD_HANDLE)
     if (AllowExceptions)
       ErrHandler.SeekError(FileName);
     else
@@ -464,7 +517,9 @@ int64 File::Tell()
       return -1;
   return INT32TO64(HighDist,LowDist);
 #else
-#if defined(_LARGEFILE_SOURCE) && !defined(_OSF_SOURCE)
+#ifdef FILE_USE_OPEN
+  return lseek64(hFile,0,SEEK_CUR);
+#elif defined(_LARGEFILE_SOURCE) && !defined(_OSF_SOURCE)
   return ftello(hFile);
 #else
   return ftell(hFile);
@@ -486,7 +541,7 @@ void File::Prealloc(int64 Size)
 #if defined(_UNIX) && defined(USE_FALLOCATE)
   // fallocate is rather new call. Only latest kernels support it.
   // So we are not using it by default yet.
-  int fd = fileno(hFile);
+  int fd = GetFD(hFile);
   if (fd >= 0)
     fallocate(fd, 0, 0, Size);
 #endif
@@ -582,7 +637,7 @@ void File::GetOpenFileTime(RarTime *ft)
 #endif
 #if defined(_UNIX) || defined(_EMX)
   struct stat st;
-  fstat(fileno(hFile),&st);
+  fstat(GetFD(),&st);
   *ft=st.st_mtime;
 #endif
 }
@@ -598,13 +653,13 @@ int64 File::FileLength()
 
 bool File::IsDevice()
 {
-  if (hFile==BAD_HANDLE)
+  if (hFile==FILE_BAD_HANDLE)
     return false;
 #ifdef _WIN_ALL
   uint Type=GetFileType(hFile);
   return Type==FILE_TYPE_CHAR || Type==FILE_TYPE_PIPE;
 #else
-  return isatty(fileno(hFile));
+  return isatty(GetFD());
 #endif
 }
 
@@ -612,7 +667,7 @@ bool File::IsDevice()
 #ifndef SFX_MODULE
 int64 File::Copy(File &Dest,int64 Length)
 {
-  Array<char> Buffer(0x10000);
+  Array<char> Buffer(0x40000);
   int64 CopySize=0;
   bool CopyAll=(Length==INT64NDF);
 
@@ -620,10 +675,26 @@ int64 File::Copy(File &Dest,int64 Length)
   {
     Wait();
     size_t SizeToRead=(!CopyAll && Length<(int64)Buffer.Size()) ? (size_t)Length:Buffer.Size();
-    int ReadSize=Read(&Buffer[0],SizeToRead);
+    char *Buf=&Buffer[0];
+    int ReadSize=Read(Buf,SizeToRead);
     if (ReadSize==0)
       break;
-    Dest.Write(&Buffer[0],ReadSize);
+    size_t WriteSize=ReadSize;
+#ifdef _WIN_ALL
+    // For FAT32 USB flash drives in Windows if first write is 4 KB or more,
+    // write caching is disabled and "write through" is enabled, resulting
+    // in bad performance, especially for many small files. It happens when
+    // we create SFX archive on USB drive, because SFX module is written first.
+    // So we split the first write to small 1 KB followed by rest of data.
+    if (CopySize==0 && WriteSize>=4096)
+    {
+      const size_t FirstWrite=1024;
+      Dest.Write(Buf,FirstWrite);
+      Buf+=FirstWrite;
+      WriteSize-=FirstWrite;
+    }
+#endif
+    Dest.Write(Buf,WriteSize);
     CopySize+=ReadSize;
     if (!CopyAll)
       Length-=ReadSize;

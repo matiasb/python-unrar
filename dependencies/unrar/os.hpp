@@ -42,10 +42,9 @@
 #include <shlobj.h>
 #include <winioctl.h>
 #include <wincrypt.h>
-
-
 #include <wchar.h>
 #include <wctype.h>
+
 
 #endif // _WIN_ALL
 
@@ -80,6 +79,7 @@
 #include <time.h>
 #include <signal.h>
 
+
 #define SAVE_LINKS
 
 #define ENABLE_ACCESS
@@ -88,8 +88,7 @@
 #define DefLogName     L"rar.log"
 
 
-#define PATHDIVIDER  "\\"
-#define PATHDIVIDERW L"\\"
+#define SPATHDIVIDER L"\\"
 #define CPATHDIVIDER '\\'
 #define MASKALL      L"*"
 
@@ -130,7 +129,12 @@
   #include <sys/sysctl.h>
 #endif
 #ifndef SFX_MODULE
-  #include <sys/statvfs.h>
+  #ifdef _ANDROID
+    #include <sys/vfs.h>
+    #define statvfs statfs
+  #else
+    #include <sys/statvfs.h>
+  #endif
 #endif
 #if defined(__FreeBSD__) || defined (__NetBSD__) || defined (__OpenBSD__) || defined(__APPLE__)
 #endif
@@ -151,8 +155,14 @@
 #include <utime.h>
 #include <locale.h>
 
+
 #ifdef  S_IFLNK
 #define SAVE_LINKS
+#endif
+
+#if defined(__linux) && !defined (_ANDROID) || defined(__FreeBSD__)
+#include <sys/time.h>
+#define USE_LUTIMES
 #endif
 
 #define ENABLE_ACCESS
@@ -161,8 +171,7 @@
 #define DefLogName     L".rarlog"
 
 
-#define PATHDIVIDER  "/"
-#define PATHDIVIDERW L"/"
+#define SPATHDIVIDER L"/"
 #define CPATHDIVIDER '/'
 #define MASKALL      L"*"
 
@@ -195,7 +204,7 @@
 
 #endif
 
-  typedef const char* MSGID;
+  typedef const wchar* MSGID;
 
 #ifndef SSE_ALIGNMENT // No SSE use and no special data alignment is required.
   #define SSE_ALIGNMENT 1
@@ -233,15 +242,9 @@
   #endif
 #endif
 
-#if !defined(BIG_ENDIAN) && !defined(_WIN_CE) && defined(_WIN_ALL)
+#if !defined(BIG_ENDIAN) && defined(_WIN_ALL) || defined(__i386__) || defined(__x86_64__)
 // Allow not aligned integer access, increases speed in some operations.
-#define ALLOW_NOT_ALIGNED_INT
-#endif
-
-#if defined(__sparc) || defined(sparc) || defined(__sparcv9)
-// Prohibit not aligned access to data structures in text compression
-// algorithm, increases memory requirements.
-#define STRICT_ALIGNMENT_REQUIRED
+#define ALLOW_MISALIGNED
 #endif
 
 #endif // _RAR_OS_

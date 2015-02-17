@@ -1,10 +1,5 @@
 #include "rar.hpp"
 
-RarTime::RarTime()
-{
-  Reset();
-}
-
 #ifdef _WIN_ALL
 RarTime& RarTime::operator =(FILETIME &ft)
 {
@@ -46,7 +41,32 @@ void RarTime::GetLocal(RarLocalTime *lt)
   FILETIME ft;
   GetWin32(&ft);
   FILETIME lft;
-  FileTimeToLocalFileTime(&ft,&lft);
+
+  if (WinNT() < WNT_VISTA)
+  {
+    // SystemTimeToTzSpecificLocalTime based code produces 1 hour error on XP.
+    FileTimeToLocalFileTime(&ft,&lft);
+  }
+  else
+  {
+    // We use these functions instead of FileTimeToLocalFileTime according to
+    // MSDN recommendation: "To account for daylight saving time
+    // when converting a file time to a local time ..."
+    SYSTEMTIME st1,st2;
+    FileTimeToSystemTime(&ft,&st1);
+    SystemTimeToTzSpecificLocalTime(NULL,&st1,&st2);
+    SystemTimeToFileTime(&st2,&lft);
+
+    // Correct precision loss (low 4 decimal digits) in FileTimeToSystemTime.
+    FILETIME rft;
+    SystemTimeToFileTime(&st1,&rft);
+    int64 Corrected=INT32TO64(ft.dwHighDateTime,ft.dwLowDateTime)-
+                    INT32TO64(rft.dwHighDateTime,rft.dwLowDateTime)+
+                    INT32TO64(lft.dwHighDateTime,lft.dwLowDateTime);
+    lft.dwLowDateTime=(DWORD)Corrected;
+    lft.dwHighDateTime=(DWORD)(Corrected>>32);
+  }
+
   SYSTEMTIME st;
   FileTimeToSystemTime(&lft,&st);
   lt->Year=st.wYear;
@@ -84,7 +104,7 @@ void RarTime::GetLocal(RarLocalTime *lt)
   lt->Hour=t->tm_hour;
   lt->Minute=t->tm_min;
   lt->Second=t->tm_sec;
-  lt->Reminder=0;
+  lt->Reminder=itime % 10000000;
   lt->wDay=t->tm_wday;
   lt->yDay=t->tm_yday;
 #endif
@@ -108,8 +128,32 @@ void RarTime::SetLocal(RarLocalTime *lt)
     lft.dwLowDateTime+=lt->Reminder;
     if (lft.dwLowDateTime<lt->Reminder)
       lft.dwHighDateTime++;
+
     FILETIME ft;
-    LocalFileTimeToFileTime(&lft,&ft);
+
+    if (WinNT() < WNT_VISTA)
+    {
+      // TzSpecificLocalTimeToSystemTime based code produces 1 hour error on XP.
+      LocalFileTimeToFileTime(&lft,&ft);
+    }
+    else
+    {
+      // Reverse procedure which we do in GetLocal.
+      SYSTEMTIME st1,st2;
+      FileTimeToSystemTime(&lft,&st2);
+      TzSpecificLocalTimeToSystemTime(NULL,&st2,&st1);
+      SystemTimeToFileTime(&st1,&ft);
+
+      // Correct precision loss (low 4 decimal digits) in FileTimeToSystemTime.
+      FILETIME rft;
+      SystemTimeToFileTime(&st2,&rft);
+      int64 Corrected=INT32TO64(lft.dwHighDateTime,lft.dwLowDateTime)-
+                      INT32TO64(rft.dwHighDateTime,rft.dwLowDateTime)+
+                      INT32TO64(ft.dwHighDateTime,ft.dwLowDateTime);
+      ft.dwLowDateTime=(DWORD)Corrected;
+      ft.dwHighDateTime=(DWORD)(Corrected>>32);
+    }
+
     *this=ft;
   }
   else
@@ -125,6 +169,7 @@ void RarTime::SetLocal(RarLocalTime *lt)
   t.tm_year=lt->Year-1900;
   t.tm_isdst=-1;
   *this=mktime(&t);
+  itime+=lt->Reminder;
 #endif
 }
 
@@ -250,7 +295,6 @@ void RarTime::SetAgeText(const wchar *TimeText)
     }
   }
   SetCurrentTime();
-  int64 RawTime=GetRaw();
   SetRaw(itime-uint64(Seconds)*10000000);
 }
 #endif
@@ -272,23 +316,15 @@ void RarTime::SetCurrentTime()
 }
 
 
-#if !defined(SFX_MODULE) && !defined(_WIN_CE)
+#ifndef SFX_MODULE
 const wchar *GetMonthName(int Month)
 {
-#ifdef SILENT
-  return(L"");
-#else
-  static MSGID MonthID[]={
-         MMonthJan,MMonthFeb,MMonthMar,MMonthApr,MMonthMay,MMonthJun,
-         MMonthJul,MMonthAug,MMonthSep,MMonthOct,MMonthNov,MMonthDec
-  };
-  return(St(MonthID[Month]));
-#endif
+  return uiGetMonthName(Month);
 }
 #endif
 
 
 bool IsLeapYear(int Year)
 {
-  return((Year&3)==0 && (Year%100!=0 || Year%400==0));
+  return (Year&3)==0 && (Year%100!=0 || Year%400==0);
 }

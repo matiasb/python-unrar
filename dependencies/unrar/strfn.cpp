@@ -2,13 +2,13 @@
 
 const char *NullToEmpty(const char *Str)
 {
-  return(Str==NULL ? "":Str);
+  return Str==NULL ? "":Str;
 }
 
 
 const wchar *NullToEmpty(const wchar *Str)
 {
-  return(Str==NULL ? L"":Str);
+  return Str==NULL ? L"":Str;
 }
 
 
@@ -17,6 +17,10 @@ void IntToExt(const char *Src,char *Dest,size_t DestSize)
 #ifdef _WIN_ALL
   OemToCharBuffA(Src,Dest,(DWORD)DestSize);
   Dest[DestSize-1]=0;
+#elif defined(_ANDROID)
+  wchar DestW[NM];
+  UnkToWide(Src,DestW,ASIZE(DestW));
+  WideToChar(DestW,Dest,DestSize);
 #else
   if (Dest!=Src)
     strncpyz(Dest,Src,DestSize);
@@ -27,7 +31,7 @@ void IntToExt(const char *Src,char *Dest,size_t DestSize)
 int stricomp(const char *s1,const char *s2)
 {
 #ifdef _WIN_ALL
-  return(CompareStringA(LOCALE_USER_DEFAULT,NORM_IGNORECASE|SORT_STRINGSORT,s1,-1,s2,-1)-2);
+  return CompareStringA(LOCALE_USER_DEFAULT,NORM_IGNORECASE|SORT_STRINGSORT,s1,-1,s2,-1)-2;
 #else
   while (toupper(*s1)==toupper(*s2))
   {
@@ -47,9 +51,11 @@ int strnicomp(const char *s1,const char *s2,size_t n)
   // If we specify 'n' exceeding the actual string length, CompareString goes
   // beyond the trailing zero and compares garbage. So we need to limit 'n'
   // to real string length.
-  size_t l1=Min(strlen(s1)+1,n);
-  size_t l2=Min(strlen(s2)+1,n);
-  return(CompareStringA(LOCALE_USER_DEFAULT,NORM_IGNORECASE|SORT_STRINGSORT,s1,(int)l1,s2,(int)l2)-2);
+  // It is important to use strnlen (or memchr(...,0)) instead of strlen,
+  // because data can be not zero terminated.
+  size_t l1=Min(strnlen(s1,n),n);
+  size_t l2=Min(strnlen(s2,n),n);
+  return CompareStringA(LOCALE_USER_DEFAULT,NORM_IGNORECASE|SORT_STRINGSORT,s1,(int)l1,s2,(int)l2)-2;
 #else
   if (n==0)
     return 0;
@@ -192,7 +198,7 @@ uint GetDigits(uint Number)
     Number/=10;
     Digits++;
   }
-  return(Digits);
+  return Digits;
 }
 #endif
 
@@ -201,8 +207,8 @@ bool LowAscii(const char *Str)
 {
   for (int I=0;Str[I]!=0;I++)
     if ((byte)Str[I]<32 || (byte)Str[I]>127)
-      return(false);
-  return(true);
+      return false;
+  return true;
 }
 
 
@@ -211,20 +217,20 @@ bool LowAscii(const wchar *Str)
   for (int I=0;Str[I]!=0;I++)
   {
     // We convert wchar_t to uint just in case if some compiler
-    // uses the signed wchar_t.
+    // uses signed wchar_t.
     if ((uint)Str[I]<32 || (uint)Str[I]>127)
-      return(false);
+      return false;
   }
-  return(true);
+  return true;
 }
 
 
 int wcsicompc(const wchar *Str1,const wchar *Str2)
 {
 #if defined(_UNIX)
-  return(wcscmp(Str1,Str2));
+  return wcscmp(Str1,Str2);
 #else
-  return(wcsicomp(Str1,Str2));
+  return wcsicomp(Str1,Str2);
 #endif
 }
 
@@ -237,7 +243,7 @@ char* strncpyz(char *dest, const char *src, size_t maxlen)
     strncpy(dest,src,maxlen-1);
     dest[maxlen-1]=0;
   }
-  return(dest);
+  return dest;
 }
 
 
@@ -259,8 +265,9 @@ wchar* wcsncpyz(wchar *dest, const wchar *src, size_t maxlen)
 char* strncatz(char* dest, const char* src, size_t maxlen)
 {
   size_t Length = strlen(dest);
-  if (Length + 1 < maxlen)
-    strncat(dest, src, maxlen - Length - 1);
+  int avail=int(maxlen - Length - 1);
+  if (avail > 0)
+    strncat(dest, src, avail);
   return dest;
 }
 
@@ -271,8 +278,9 @@ char* strncatz(char* dest, const char* src, size_t maxlen)
 wchar* wcsncatz(wchar* dest, const wchar* src, size_t maxlen)
 {
   size_t Length = wcslen(dest);
-  if (Length + 1 < maxlen)
-    wcsncat(dest, src, maxlen - Length - 1);
+  int avail=int(maxlen - Length - 1);
+  if (avail > 0)
+    wcsncat(dest, src, avail);
   return dest;
 }
 
@@ -321,7 +329,7 @@ const wchar* GetWide(const char *Src)
   wchar *Str=StrTable[StrNum];
   CharToWide(Src,Str,MaxLength);
   Str[MaxLength-1]=0;
-  return(Str);
+  return Str;
 }
 
 
@@ -396,14 +404,3 @@ void PrintfPrepareFmt(const wchar *Org,wchar *Cvt,size_t MaxSize)
   Cvt[Dest]=0;
 }
 #endif
-
-
-bool GetPassword(PASSWORD_TYPE Type,const wchar *FileName,SecPassword *Password)
-{
-#ifdef SILENT
-  return false;
-#else
-  return GetConsolePassword(Type,FileName,Password);
-#endif
-}
-

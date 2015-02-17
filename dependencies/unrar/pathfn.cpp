@@ -29,7 +29,7 @@ wchar* ConvertPath(const wchar *SrcPath,wchar *DestPath)
   while (*DestPtr!=0)
   {
     const wchar *s=DestPtr;
-    if (s[0] && IsDriveDiv(s[1]))
+    if (s[0]!=0 && IsDriveDiv(s[1]))
       s+=2;
     if (s[0]=='\\' && s[1]=='\\')
     {
@@ -71,44 +71,39 @@ void SetName(wchar *FullName,const wchar *Name,size_t MaxSize)
 }
 
 
-void SetExt(wchar *Name,const wchar *NewExt)
+void SetExt(wchar *Name,const wchar *NewExt,size_t MaxSize)
 {
   if (Name==NULL || *Name==0)
     return;
   wchar *Dot=GetExt(Name);
-  if (NewExt==NULL)
+  if (Dot!=NULL)
+    *Dot=0;
+  if (NewExt!=NULL)
   {
-    if (Dot!=NULL)
-      *Dot=0;
+    wcsncatz(Name,L".",MaxSize);
+    wcsncatz(Name,NewExt,MaxSize);
   }
-  else
-    if (Dot==NULL)
-    {
-      wcscat(Name,L".");
-      wcscat(Name,NewExt);
-    }
-    else
-      wcscpy(Dot+1,NewExt);
 }
 
 
 #ifndef SFX_MODULE
-void SetSFXExt(wchar *SFXName)
+void SetSFXExt(wchar *SFXName,size_t MaxSize)
 {
   if (SFXName==NULL || *SFXName==0)
     return;
 
 #ifdef _UNIX
-  SetExt(SFXName,L"sfx");
+  SetExt(SFXName,L"sfx",MaxSize);
 #endif
 
 #if defined(_WIN_ALL) || defined(_EMX)
-  SetExt(SFXName,L"exe");
+  SetExt(SFXName,L"exe",MaxSize);
 #endif
 }
 #endif
 
 
+// 'Ext' is an extension with the leading dot, like L".rar".
 wchar *GetExt(const wchar *Name)
 {
   return Name==NULL ? NULL:wcsrchr(PointToName(Name),'.');
@@ -162,7 +157,7 @@ void AddEndSlash(wchar *Path,size_t MaxLength)
 {
   size_t Length=wcslen(Path);
   if (Length>0 && Path[Length-1]!=CPATHDIVIDER && Length+1<MaxLength)
-    wcscat(Path,PATHDIVIDERW);
+    wcscat(Path,SPATHDIVIDER);
 }
 
 
@@ -200,8 +195,8 @@ void RemoveNameFromPath(wchar *Path)
 }
 
 
-#if defined(_WIN_ALL) && !defined(_WIN_CE) && !defined(SFX_MODULE)
-static void GetAppDataPath(wchar *Path,size_t MaxSize)
+#if defined(_WIN_ALL) && !defined(SFX_MODULE)
+bool GetAppDataPath(wchar *Path,size_t MaxSize,bool Create)
 {
   LPMALLOC g_pMalloc;
   SHGetMalloc(&g_pMalloc);
@@ -213,40 +208,42 @@ static void GetAppDataPath(wchar *Path,size_t MaxSize)
   {
     AddEndSlash(Path,MaxSize);
     wcsncatz(Path,L"WinRAR",MaxSize);
-    Success=FileExist(Path) || MakeDir(Path,false,0)==MKDIR_SUCCESS;
-  }
-  if (!Success)
-  {
-    GetModuleFileName(NULL,Path,(DWORD)MaxSize);
-    RemoveNameFromPath(Path);
+    Success=FileExist(Path);
+    if (!Success && Create)
+      Success=MakeDir(Path,false,0)==MKDIR_SUCCESS;
   }
   g_pMalloc->Free(ppidl);
+  return Success;
 }
 #endif
 
 
 #if defined(_WIN_ALL) && !defined(SFX_MODULE)
-void GetRarDataPath(wchar *Path,size_t MaxSize)
+void GetRarDataPath(wchar *Path,size_t MaxSize,bool Create)
 {
   *Path=0;
 
   HKEY hKey;
-  if (RegOpenKeyExW(HKEY_CURRENT_USER,L"Software\\WinRAR\\Paths",0,
-                    KEY_QUERY_VALUE,&hKey)==ERROR_SUCCESS)
+  if (RegOpenKeyEx(HKEY_CURRENT_USER,L"Software\\WinRAR\\Paths",0,
+                   KEY_QUERY_VALUE,&hKey)==ERROR_SUCCESS)
   {
     DWORD DataSize=(DWORD)MaxSize,Type;
-    RegQueryValueExW(hKey,L"AppData",0,&Type,(BYTE *)Path,&DataSize);
+    RegQueryValueEx(hKey,L"AppData",0,&Type,(BYTE *)Path,&DataSize);
     RegCloseKey(hKey);
   }
 
   if (*Path==0 || !FileExist(Path))
-    GetAppDataPath(Path,MaxSize);
+    if (!GetAppDataPath(Path,MaxSize,Create))
+    {
+      GetModuleFileName(NULL,Path,(DWORD)MaxSize);
+      RemoveNameFromPath(Path);
+    }
 }
 #endif
 
 
 #ifndef SFX_MODULE
-bool EnumConfigPaths(uint Number,wchar *Path,size_t MaxSize)
+bool EnumConfigPaths(uint Number,wchar *Path,size_t MaxSize,bool Create)
 {
 #ifdef _UNIX
   static const wchar *ConfPath[]={
@@ -270,10 +267,10 @@ bool EnumConfigPaths(uint Number,wchar *Path,size_t MaxSize)
   if (Number>1)
     return false;
   if (Number==0)
-    GetRarDataPath(Path,MaxSize);
+    GetRarDataPath(Path,MaxSize,Create);
   else
   {
-    GetModuleFileNameW(NULL,Path,(DWORD)MaxSize);
+    GetModuleFileName(NULL,Path,(DWORD)MaxSize);
     RemoveNameFromPath(Path);
   }
   return true;
@@ -285,10 +282,10 @@ bool EnumConfigPaths(uint Number,wchar *Path,size_t MaxSize)
 
 
 #ifndef SFX_MODULE
-void GetConfigName(const wchar *Name,wchar *FullName,size_t MaxSize,bool CheckExist)
+void GetConfigName(const wchar *Name,wchar *FullName,size_t MaxSize,bool CheckExist,bool Create)
 {
   *FullName=0;
-  for (uint I=0;EnumConfigPaths(I,FullName,MaxSize);I++)
+  for (uint I=0;EnumConfigPaths(I,FullName,MaxSize,Create);I++)
   {
     AddEndSlash(FullName,MaxSize);
     wcsncatz(FullName,Name,MaxSize);
@@ -422,7 +419,8 @@ void MakeNameUsable(char *Name,bool Extended)
 #ifndef _UNIX
     if (s-Name>1 && *s==':')
       *s='_';
-    if ((*s==' ' || *s=='.') && IsPathDiv(s[1]))
+    // Remove ' ' and '.' before path separator, but allow .\ and ..\.
+    if ((*s==' ' || *s=='.' && s>Name && !IsPathDiv(s[-1]) && s[-1]!='.') && IsPathDiv(s[1]))
       *s='_';
 #endif
   }
@@ -438,98 +436,50 @@ void MakeNameUsable(wchar *Name,bool Extended)
 #ifndef _UNIX
     if (s-Name>1 && *s==':')
       *s='_';
-    if ((*s==' ' || *s=='.') && IsPathDiv(s[1]))
+#if 0  // We already can create such files.
+    // Remove ' ' and '.' before path separator, but allow .\ and ..\.
+    if (IsPathDiv(s[1]) && (*s==' ' || *s=='.' && s>Name &&
+        !IsPathDiv(s[-1]) && (s[-1]!='.' || s>Name+1 && !IsPathDiv(s[-2]))))
       *s='_';
+#endif
 #endif
   }
 }
 
 
-char* UnixSlashToDos(char *SrcName,char *DestName,size_t MaxLength)
+void UnixSlashToDos(const char *SrcName,char *DestName,size_t MaxLength)
 {
-  if (DestName!=NULL && DestName!=SrcName)
-    if (strlen(SrcName)>=MaxLength)
-    {
-      *DestName=0;
-      return DestName;
-    }
-    else
-      strcpy(DestName,SrcName);
-  for (char *s=SrcName;*s!=0;s=charnext(s))
-  {
-    if (*s=='/')
-      if (DestName==NULL)
-        *s='\\';
-      else
-        DestName[s-SrcName]='\\';
-  }
-  return DestName==NULL ? SrcName:DestName;
+  size_t Copied=0;
+  for (;Copied<MaxLength-1 && SrcName[Copied]!=0;Copied++)
+    DestName[Copied]=SrcName[Copied]=='/' ? '\\':SrcName[Copied];
+  DestName[Copied]=0;
 }
 
 
-char* DosSlashToUnix(char *SrcName,char *DestName,size_t MaxLength)
+void DosSlashToUnix(const char *SrcName,char *DestName,size_t MaxLength)
 {
-  if (DestName!=NULL && DestName!=SrcName)
-    if (strlen(SrcName)>=MaxLength)
-    {
-      *DestName=0;
-      return DestName;
-    }
-    else
-      strcpy(DestName,SrcName);
-  for (char *s=SrcName;*s!=0;s=charnext(s))
-  {
-    if (*s=='\\')
-      if (DestName==NULL)
-        *s='/';
-      else
-        DestName[s-SrcName]='/';
-  }
-  return DestName==NULL ? SrcName:DestName;
+  size_t Copied=0;
+  for (;Copied<MaxLength-1 && SrcName[Copied]!=0;Copied++)
+    DestName[Copied]=SrcName[Copied]=='\\' ? '/':SrcName[Copied];
+  DestName[Copied]=0;
 }
 
 
-wchar* UnixSlashToDos(wchar *SrcName,wchar *DestName,size_t MaxLength)
+void UnixSlashToDos(const wchar *SrcName,wchar *DestName,size_t MaxLength)
 {
-  if (DestName!=NULL && DestName!=SrcName)
-    if (wcslen(SrcName)>=MaxLength)
-    {
-      *DestName=0;
-      return DestName;
-    }
-    else
-      wcscpy(DestName,SrcName);
-  for (wchar *s=SrcName;*s!=0;s++)
-  {
-    if (*s=='/')
-      if (DestName==NULL)
-        *s='\\';
-      else
-        DestName[s-SrcName]='\\';
-  }
-  return DestName==NULL ? SrcName:DestName;
+  size_t Copied=0;
+  for (;Copied<MaxLength-1 && SrcName[Copied]!=0;Copied++)
+    DestName[Copied]=SrcName[Copied]=='/' ? '\\':SrcName[Copied];
+  DestName[Copied]=0;
 }
 
 
-wchar* DosSlashToUnix(wchar *SrcName,wchar *DestName,size_t MaxLength)
+void DosSlashToUnix(const wchar *SrcName,wchar *DestName,size_t MaxLength)
 {
-  if (DestName!=NULL && DestName!=SrcName)
-    if (wcslen(SrcName)>=MaxLength)
-    {
-      *DestName=0;
-      return DestName;
-    }
-    else
-      wcscpy(DestName,SrcName);
-  for (wchar *s=SrcName;*s!=0;s++)
-  {
-    if (*s=='\\')
-      if (DestName==NULL)
-        *s='/';
-      else
-        DestName[s-SrcName]='/';
-  }
-  return DestName==NULL ? SrcName:DestName;
+  size_t Copied=0;
+  for (;Copied<MaxLength-1 && SrcName[Copied]!=0;Copied++)
+    DestName[Copied]=SrcName[Copied]=='\\' ? '/':SrcName[Copied];
+  DestName[Copied]=0;
 }
 
 
@@ -591,6 +541,12 @@ bool IsFullPath(const wchar *Path)
 }
 
 
+bool IsFullRootPath(const wchar *Path)
+{
+  return IsFullPath(Path) || IsPathDiv(Path[0]);
+}
+
+
 bool IsDiskLetter(const wchar *Path)
 {
   wchar Letter=etoupperw(Path[0]);
@@ -640,10 +596,10 @@ int ParseVersionFileName(wchar *Name,bool Truncate)
 
 #if !defined(SFX_MODULE) && !defined(SETUP)
 // Get the name of first volume. Return the leftmost digit of volume number.
-wchar* VolNameToFirstName(const wchar *VolName,wchar *FirstName,bool NewNumbering)
+wchar* VolNameToFirstName(const wchar *VolName,wchar *FirstName,size_t MaxSize,bool NewNumbering)
 {
   if (FirstName!=VolName)
-    wcscpy(FirstName,VolName);
+    wcsncpyz(FirstName,VolName,MaxSize);
   wchar *VolNumStart=FirstName;
   if (NewNumbering)
   {
@@ -666,7 +622,7 @@ wchar* VolNameToFirstName(const wchar *VolName,wchar *FirstName,bool NewNumberin
   else
   {
     // Old volume numbering scheme. Just set the extension to ".rar".
-    SetExt(FirstName,L"rar");
+    SetExt(FirstName,L"rar",MaxSize);
     VolNumStart=GetExt(FirstName);
   }
   if (!FileExist(FirstName))
@@ -675,8 +631,8 @@ wchar* VolNameToFirstName(const wchar *VolName,wchar *FirstName,bool NewNumberin
     // check if volume with same name and any other extension is available.
     // It can help in case of *.exe or *.sfx first volume.
     wchar Mask[NM];
-    wcscpy(Mask,FirstName);
-    SetExt(Mask,L"*");
+    wcsncpyz(Mask,FirstName,ASIZE(Mask));
+    SetExt(Mask,L"*",ASIZE(Mask));
     FindFile Find;
     Find.SetMask(Mask);
     FindData FD;
@@ -685,7 +641,7 @@ wchar* VolNameToFirstName(const wchar *VolName,wchar *FirstName,bool NewNumberin
       Archive Arc;
       if (Arc.Open(FD.Name,0) && Arc.IsArchive(true) && Arc.FirstVolume)
       {
-        wcscpy(FirstName,FD.Name);
+        wcsncpyz(FirstName,FD.Name,MaxSize);
         break;
       }
     }
@@ -696,7 +652,7 @@ wchar* VolNameToFirstName(const wchar *VolName,wchar *FirstName,bool NewNumberin
 
 
 #ifndef SFX_MODULE
-static void GenArcName(wchar *ArcName,wchar *GenerateMask,uint ArcNumber,bool &ArcNumPresent)
+static void GenArcName(wchar *ArcName,const wchar *GenerateMask,uint ArcNumber,bool &ArcNumPresent)
 {
   bool Prefix=false;
   if (*GenerateMask=='+')
@@ -819,7 +775,15 @@ static void GenArcName(wchar *ArcName,wchar *GenerateMask,uint ArcNumber,bool &A
     }
     const wchar *ChPtr=wcschr(MaskChars,toupperw(Mask[I]));
     if (ChPtr==NULL || QuoteMode)
+    {
       DateText[J]=Mask[I];
+#ifdef _WIN_ALL
+      // We do not allow ':' in Windows because of NTFS streams.
+      // Users had problems after specifying hh:mm mask.
+      if (DateText[J]==':')
+        DateText[J]='_';
+#endif
+    }
     else
     {
       size_t FieldPos=ChPtr-MaskChars;
@@ -854,7 +818,7 @@ static void GenArcName(wchar *ArcName,wchar *GenerateMask,uint ArcNumber,bool &A
 }
 
 
-void GenerateArchiveName(wchar *ArcName,size_t MaxSize,wchar *GenerateMask,bool Archiving)
+void GenerateArchiveName(wchar *ArcName,size_t MaxSize,const wchar *GenerateMask,bool Archiving)
 {
   // Must be enough space for archive name plus all stuff in mask plus
   // extra overhead produced by mask 'N' (archive number) characters.
@@ -919,6 +883,8 @@ wchar* GetWideName(const char *Name,const wchar *NameW,wchar *DestW,size_t DestS
 // characters, even if their path length is normal.
 bool GetWinLongPath(const wchar *Src,wchar *Dest,size_t MaxSize)
 {
+  if (*Src==0)
+    return false;
   const wchar *Prefix=L"\\\\?\\";
   const size_t PrefixLength=4;
   bool FullPath=IsDiskLetter(Src) && IsPathDiv(Src[2]);
@@ -969,6 +935,10 @@ bool GetWinLongPath(const wchar *Src,wchar *Dest,size_t MaxSize)
         return false;
       wcsncpy(Dest,Prefix,PrefixLength);
       wcscpy(Dest+PrefixLength,CurDir);
+
+      if (Src[0]=='.' && IsPathDiv(Src[1])) // Remove leading .\ in pathname.
+        Src+=2;
+
       wcsncatz(Dest,Src,MaxSize);
       return true;
     }

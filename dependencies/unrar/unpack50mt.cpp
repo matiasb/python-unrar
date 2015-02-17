@@ -80,20 +80,22 @@ void Unpack::Unpack5MT(bool Solid)
   bool Done=false;
   while (!Done)
   {
+    // Data amount, which is guaranteed to fit block header and tables,
+    // so we can safely read them without additional checks.
+    const int TooSmallToProcess=1024;
+
     int ReadSize=UnpIO->UnpRead(ReadBufMT+DataSize,(UNP_READ_SIZE_MT-DataSize)&~0xf);
     if (ReadSize<0)
       break;
     DataSize+=ReadSize;
     if (DataSize==0)
       break;
+    if (ReadSize>0 && DataSize<TooSmallToProcess)
+      continue;
 
     bool BufferProcessed=false;
     while (BlockStart<DataSize && !Done)
     {
-      // Data amount, which is guaranteed to fit block header and tables,
-      // so we can safely read them without additional checks.
-      const int TooSmallToProcess=1024;
-
       uint BlockNumber=0,BlockNumberMT=0;
       while (BlockNumber<MaxUserThreads*UNP_BLOCKS_PER_THREAD)
       {
@@ -415,12 +417,6 @@ void Unpack::UnpackDecode(UnpackThreadData &D)
       CurItem->Length=Filter.Channels;
       CurItem->Distance=Filter.BlockLength;
 
-      CurItem=D.Decoded+D.DecodedSize++;
-
-      CurItem->Type=UNPDT_FILTER;
-      CurItem->Length=Filter.PosR;
-      CurItem->Distance=Filter.Width;
-
       continue;
     }
     if (MainSlot==257)
@@ -457,7 +453,7 @@ bool Unpack::ProcessDecoded(UnpackThreadData &D)
 
     if (Item->Type==UNPDT_LITERAL)
     {
-#if defined(LITTLE_ENDIAN) && defined(PRESENT_INT32) && defined(ALLOW_NOT_ALIGNED_INT)
+#if defined(LITTLE_ENDIAN) && defined(PRESENT_INT32) && defined(ALLOW_MISALIGNED)
       if (Item->Length==3 && UnpPtr<MaxWinSize-4)
       {
         *(uint32 *)(Window+UnpPtr)=*(uint32 *)Item->Literal;
@@ -503,11 +499,6 @@ bool Unpack::ProcessDecoded(UnpackThreadData &D)
 
               Filter.Channels=(byte)Item->Length;
               Filter.BlockLength=Item->Distance;
-
-              Item++;
-
-              Filter.PosR=(byte)Item->Length;
-              Filter.Width=Item->Distance;
 
               AddFilter(Filter);
             }

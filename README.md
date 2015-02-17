@@ -18,7 +18,7 @@ and compile (you may need to rename the makefile that you want to use according 
     $ make lib
     $ make install-lib
 
-(current sources: http://www.rarlab.com/rar/unrarsrc-5.0.7.tar.gz)
+(latest tested sources: http://www.rarlab.com/rar/unrarsrc-5.2.6.tar.gz)
 
 For Windows you can also download the already compiled library (http://www.rarlab.com/rar/UnRARDLL.exe).
 

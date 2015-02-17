@@ -99,6 +99,9 @@ class RAROptions
     wchar ArcPath[NM];
     SecPassword Password;
     bool EncryptHeaders;
+    
+    bool ManualPassword; // Password entered manually during operation, might need to clean for next archive.
+
     wchar LogName[NM];
     MESSAGE_TYPE MsgStream;
     bool Sound;
@@ -129,6 +132,7 @@ class RAROptions
     bool ProcessOwners;
     bool SaveSymLinks;
     bool SaveHardLinks;
+    bool AbsoluteLinks;
     int Priority;
     int SleepTime;
     bool KeepBroken;
@@ -165,6 +169,9 @@ class RAROptions
     uint Threads; // We use it to init hash even if RAR_SMP is not defined.
 
 
+#ifdef _ANDROID
+    int64 FreeMem;
+#endif
 
 
 

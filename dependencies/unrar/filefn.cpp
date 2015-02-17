@@ -3,7 +3,11 @@
 MKDIR_CODE MakeDir(const wchar *Name,bool SetAttr,uint Attr)
 {
 #ifdef _WIN_ALL
-  BOOL RetCode=CreateDirectory(Name,NULL);
+  // Windows automatically removes dots and spaces in the end of directory
+  // name. So we detect such names and process them with \\?\ prefix.
+  wchar *LastChar=PointToLastChar(Name);
+  bool Special=*LastChar=='.' || *LastChar==' ';
+  BOOL RetCode=Special ? FALSE : CreateDirectory(Name,NULL);
   if (RetCode==0 && !FileExist(Name))
   {
     wchar LongName[NM];
@@ -25,6 +29,10 @@ MKDIR_CODE MakeDir(const wchar *Name,bool SetAttr,uint Attr)
   WideToChar(Name,NameA,ASIZE(NameA));
   mode_t uattr=SetAttr ? (mode_t)Attr:0777;
   int ErrCode=mkdir(NameA,uattr);
+#ifdef _ANDROID
+  if (ErrCode==-1 && errno!=ENOENT)
+    ErrCode=JniMkdir(Name) ? 0 : -1;  // If external card is read-only for usual file API.
+#endif
   if (ErrCode==-1)
     return errno==ENOENT ? MKDIR_BADPATH:MKDIR_ERROR;
   return MKDIR_SUCCESS;
@@ -54,8 +62,9 @@ bool CreatePath(const wchar *Path,bool SkipLastName)
       break;
 
     // Process all kinds of path separators, so user can enter Unix style
-    // path in Windows or Windows in Unix.
-    if (IsPathDiv(*s))
+    // path in Windows or Windows in Unix. s>Path check avoids attempting
+    // creating an empty directory for paths starting from path separator.
+    if (IsPathDiv(*s) && s>Path)
     {
 #ifdef _WIN_ALL
       // We must not attempt to create "D:" directory, because first
@@ -169,6 +178,19 @@ int64 GetFreeDisk(const wchar *Name)
 #endif
 
 
+#if defined(_WIN_ALL) && !defined(SFX_MODULE) && !defined(SILENT)
+// Return 'true' for FAT and FAT32, so we can adjust the maximum supported
+// file size to 4 GB for these file systems.
+bool IsFAT(const wchar *Name)
+{
+  wchar Root[NM];
+  GetPathRoot(Name,Root,ASIZE(Root));
+  wchar FileSystem[MAX_PATH+1];
+  if (GetVolumeInformation(Root,NULL,0,NULL,NULL,NULL,FileSystem,ASIZE(FileSystem)))
+    return wcscmp(FileSystem,L"FAT")==0 || wcscmp(FileSystem,L"FAT32")==0;
+  return false;
+}
+#endif
 
 
 bool FileExist(const wchar *Name)
@@ -310,15 +332,14 @@ bool SetFileAttr(const wchar *Name,uint Attr)
 void CalcFileSum(File *SrcFile,uint *CRC32,byte *Blake2,uint Threads,int64 Size,uint Flags)
 {
   SaveFilePos SavePos(*SrcFile);
-#if !defined(SILENT) && !defined(_WIN_CE)
+#ifndef SILENT
   int64 FileLength=SrcFile->FileLength();
-  if ((Flags & (CALCFSUM_SHOWTEXT|CALCFSUM_SHOWALL))!=0)
-  {
-    mprintf(St(MCalcCRC));
-    mprintf(L"     ");
-  }
-
 #endif
+
+#ifndef GUI
+  if ((Flags & (CALCFSUM_SHOWTEXT|CALCFSUM_SHOWALL))!=0)
+#endif
+    uiMsg(UIEVENT_FILESUMSTART);
 
   if ((Flags & CALCFSUM_CURPOS)==0)
     SrcFile->Seek(0,SEEK_SET);
@@ -345,9 +366,11 @@ void CalcFileSum(File *SrcFile,uint *CRC32,byte *Blake2,uint Threads,int64 Size,
 
     if ((++BlockCount & 0xf)==0)
     {
-#if !defined(SILENT) && !defined(_WIN_CE)
+#ifndef SILENT
+#ifndef GUI
       if ((Flags & CALCFSUM_SHOWALL)!=0)
-        mprintf(L"\b\b\b\b%3d%%",ToPercent(BlockCount*int64(BufSize),FileLength));
+#endif
+        uiMsg(UIEVENT_FILESUMPROGRESS,ToPercent(BlockCount*int64(BufSize),FileLength));
 #endif
       Wait();
     }
@@ -360,10 +383,10 @@ void CalcFileSum(File *SrcFile,uint *CRC32,byte *Blake2,uint Threads,int64 Size,
     if (Size!=INT64NDF)
       Size-=ReadSize;
   }
-#ifndef SILENT
+#ifndef GUI
   if ((Flags & CALCFSUM_SHOWALL)!=0)
-    mprintf(L"\b\b\b\b    ");
 #endif
+    uiMsg(UIEVENT_FILESUMEND);
 
   if (CRC32!=NULL)
     *CRC32=HashCRC.GetCRC32();
@@ -393,7 +416,12 @@ bool RenameFile(const wchar *SrcName,const wchar *DestName)
   char SrcNameA[NM],DestNameA[NM];
   WideToChar(SrcName,SrcNameA,ASIZE(SrcNameA));
   WideToChar(DestName,DestNameA,ASIZE(DestNameA));
-  return rename(SrcNameA,DestNameA)==0;
+  bool Success=rename(SrcNameA,DestNameA)==0;
+#ifdef _ANDROID
+  if (!Success)
+    Success=JniRename(SrcName,DestName); // If external card is read-only for usual file API.
+#endif
+  return Success;
 #endif
 }
 
@@ -412,14 +440,19 @@ bool DelFile(const wchar *Name)
 #else
   char NameA[NM];
   WideToChar(Name,NameA,ASIZE(NameA));
-  return remove(NameA)==0;
+  bool Success=remove(NameA)==0;
+#ifdef _ANDROID
+  if (!Success)
+    Success=JniDelete(Name);
+#endif
+  return Success;
 #endif
 }
 
 
 
 
-#if defined(_WIN_ALL) && !defined(_WIN_CE) && !defined(SFX_MODULE)
+#if defined(_WIN_ALL) && !defined(SFX_MODULE)
 bool SetFileCompression(const wchar *Name,bool State)
 {
   HANDLE hFile=CreateFile(Name,FILE_READ_DATA|FILE_WRITE_DATA,

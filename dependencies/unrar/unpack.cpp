@@ -87,17 +87,26 @@ void Unpack::Init(size_t WinSize,bool Solid)
   // extra cautious, we still handle the solid window grow case below.
   bool Grow=Solid && (Window!=NULL || Fragmented);
 
-  byte *NewWindow=(byte *)malloc(WinSize);
-
-  // We do not handle growth for fragmented window now.
-  if (Grow && (NewWindow==NULL || Fragmented))
+  // We do not handle growth for existing fragmented window.
+  if (Grow && Fragmented)
     throw std::bad_alloc();
 
+  byte *NewWindow=Fragmented ? NULL : (byte *)malloc(WinSize);
+
   if (NewWindow==NULL)
-    if (WinSize<0x1000000) // Exclude RAR4 and small dictionaries.
+    if (Grow || WinSize<0x1000000)
+    {
+      // We do not support growth for new fragmented window.
+      // Also exclude RAR4 and small dictionaries.
       throw std::bad_alloc();
+    }
     else
     {
+      if (Window!=NULL) // If allocated by preceding files.
+      {
+        free(Window);
+        Window=NULL;
+      }
       FragWindow.Init(WinSize);
       Fragmented=true;
     }
@@ -145,10 +154,18 @@ void Unpack::DoUnpack(int Method,bool Solid)
     case 0: // RAR 5.0 compression algorithm 0.
 #ifdef RAR_SMP
       if (MaxUserThreads>1)
-        {
-          Unpack5MT(Solid);
-          break;
-        }
+      {
+//      We do not use the multithreaded unpack routine to repack RAR archives
+//      in 'suspended' mode, because unlike the single threaded code it can
+//      write more than one dictionary for same loop pass. So we would need
+//      larger buffers of unknown size. Also we do not support multithreading
+//      in fragmented window mode.
+          if (!Fragmented)
+          {
+            Unpack5MT(Solid);
+            break;
+          }
+      }
 #endif
       Unpack5(Solid);
       break;

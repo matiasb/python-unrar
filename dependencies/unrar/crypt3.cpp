@@ -1,38 +1,15 @@
-struct CryptKeyCacheItem
-{
-  CryptKeyCacheItem()
-  {
-    Password.Set(L"");
-  }
-
-  ~CryptKeyCacheItem()
-  {
-    cleandata(AESKey,sizeof(AESKey));
-    cleandata(AESInit,sizeof(AESInit));
-    cleandata(&Password,sizeof(Password));
-  }
-
-  byte AESKey[16],AESInit[16];
-  SecPassword Password;
-  bool SaltPresent;
-  byte Salt[SIZE_SALT30];
-};
-
-static CryptKeyCacheItem Cache[4];
-static int CachePos=0;
-
 void CryptData::SetKey30(bool Encrypt,SecPassword *Password,const wchar *PwdW,const byte *Salt)
 {
   byte AESKey[16],AESInit[16];
 
   bool Cached=false;
-  for (uint I=0;I<ASIZE(Cache);I++)
-    if (Cache[I].Password==*Password &&
-        (Salt==NULL && !Cache[I].SaltPresent || Salt!=NULL &&
-        Cache[I].SaltPresent && memcmp(Cache[I].Salt,Salt,SIZE_SALT30)==0))
+  for (uint I=0;I<ASIZE(KDF3Cache);I++)
+    if (KDF3Cache[I].Pwd==*Password &&
+        (Salt==NULL && !KDF3Cache[I].SaltPresent || Salt!=NULL &&
+        KDF3Cache[I].SaltPresent && memcmp(KDF3Cache[I].Salt,Salt,SIZE_SALT30)==0))
     {
-      memcpy(AESKey,Cache[I].AESKey,sizeof(AESKey));
-      memcpy(AESInit,Cache[I].AESInit,sizeof(AESInit));
+      memcpy(AESKey,KDF3Cache[I].Key,sizeof(AESKey));
+      memcpy(AESInit,KDF3Cache[I].Init,sizeof(AESInit));
       Cached=true;
       break;
     }
@@ -47,38 +24,38 @@ void CryptData::SetKey30(bool Encrypt,SecPassword *Password,const wchar *PwdW,co
       memcpy(RawPsw+RawLength,Salt,SIZE_SALT30);
       RawLength+=SIZE_SALT30;
     }
-    hash_context c;
-    hash_initial(&c);
+    sha1_context c;
+    sha1_init(&c);
 
     const int HashRounds=0x40000;
     for (int I=0;I<HashRounds;I++)
     {
-      hash_process( &c, RawPsw, RawLength, false);
+      sha1_process( &c, RawPsw, RawLength, false);
       byte PswNum[3];
       PswNum[0]=(byte)I;
       PswNum[1]=(byte)(I>>8);
       PswNum[2]=(byte)(I>>16);
-      hash_process( &c, PswNum, 3, false);
+      sha1_process( &c, PswNum, 3, false);
       if (I%(HashRounds/16)==0)
       {
-        hash_context tempc=c;
+        sha1_context tempc=c;
         uint32 digest[5];
-        hash_final( &tempc, digest, false);
+        sha1_done( &tempc, digest, false);
         AESInit[I/(HashRounds/16)]=(byte)digest[4];
       }
     }
     uint32 digest[5];
-    hash_final( &c, digest, false);
+    sha1_done( &c, digest, false);
     for (int I=0;I<4;I++)
       for (int J=0;J<4;J++)
         AESKey[I*4+J]=(byte)(digest[I]>>(J*8));
 
-    Cache[CachePos].Password=*Password;
-    if ((Cache[CachePos].SaltPresent=(Salt!=NULL))==true)
-      memcpy(Cache[CachePos].Salt,Salt,SIZE_SALT30);
-    memcpy(Cache[CachePos].AESKey,AESKey,sizeof(AESKey));
-    memcpy(Cache[CachePos].AESInit,AESInit,sizeof(AESInit));
-    CachePos=(CachePos+1)%ASIZE(Cache);
+    KDF3Cache[KDF3CachePos].Pwd=*Password;
+    if ((KDF3Cache[KDF3CachePos].SaltPresent=(Salt!=NULL))==true)
+      memcpy(KDF3Cache[KDF3CachePos].Salt,Salt,SIZE_SALT30);
+    memcpy(KDF3Cache[KDF3CachePos].Key,AESKey,sizeof(AESKey));
+    memcpy(KDF3Cache[KDF3CachePos].Init,AESInit,sizeof(AESInit));
+    KDF3CachePos=(KDF3CachePos+1)%ASIZE(KDF3Cache);
 
     cleandata(RawPsw,sizeof(RawPsw));
   }

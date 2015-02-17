@@ -1,17 +1,24 @@
 #ifndef _RAR_FILE_
 #define _RAR_FILE_
 
+#ifdef _ANDROID // Need lseek64 to handle >2 GB files in Android.
+#define FILE_USE_OPEN
+#endif
+
 #ifdef _WIN_ALL
-typedef HANDLE FileHandle;
-#define BAD_HANDLE INVALID_HANDLE_VALUE
+  typedef HANDLE FileHandle;
+  #define FILE_BAD_HANDLE INVALID_HANDLE_VALUE
+#elif defined(FILE_USE_OPEN)
+  typedef off_t FileHandle;
+  #define FILE_BAD_HANDLE -1
 #else
-typedef FILE* FileHandle;
-#define BAD_HANDLE NULL
+  typedef FILE* FileHandle;
+  #define FILE_BAD_HANDLE NULL
 #endif
 
 class RAROptions;
 
-enum FILE_HANDLETYPE {FILE_HANDLENORMAL,FILE_HANDLESTD,FILE_HANDLEERR};
+enum FILE_HANDLETYPE {FILE_HANDLENORMAL,FILE_HANDLESTD};
 
 enum FILE_ERRORTYPE {FILE_SUCCESS,FILE_NOTFOUND,FILE_READERROR};
 
@@ -28,8 +35,11 @@ enum FILE_MODE_FLAGS {
   // Open files which are already opened for write by other programs.
   FMF_OPENSHARED=4,
 
+  // Open files only if no other program is opened it even in shared mode.
+  FMF_OPENEXCLUSIVE=8,
+
   // Provide read access to created file for other programs.
-  FMF_SHAREREAD=8,
+  FMF_SHAREREAD=16,
 
   // Mode flags are not defined yet.
   FMF_UNDEFINED=256
@@ -61,17 +71,16 @@ class File
     File();
     virtual ~File();
     void operator = (File &SrcFile);
-    bool Open(const wchar *Name,uint Mode=FMF_READ);
+    virtual bool Open(const wchar *Name,uint Mode=FMF_READ);
     void TOpen(const wchar *Name);
     bool WOpen(const wchar *Name);
     bool Create(const wchar *Name,uint Mode=FMF_UPDATE|FMF_SHAREREAD);
     void TCreate(const wchar *Name,uint Mode=FMF_UPDATE|FMF_SHAREREAD);
     bool WCreate(const wchar *Name,uint Mode=FMF_UPDATE|FMF_SHAREREAD);
     bool Close();
-    void Flush();
     bool Delete();
     bool Rename(const wchar *NewName);
-    void Write(const void *Data,size_t Size);
+    bool Write(const void *Data,size_t Size);
     virtual int Read(void *Data,size_t Size);
     int DirectRead(void *Data,size_t Size);
     virtual void Seek(int64 Offset,int Method);
@@ -85,7 +94,7 @@ class File
     void SetCloseFileTime(RarTime *ftm,RarTime *fta=NULL);
     static void SetCloseFileTimeByName(const wchar *Name,RarTime *ftm,RarTime *fta);
     void GetOpenFileTime(RarTime *ft);
-    bool IsOpened() {return(hFile!=BAD_HANDLE);};
+    bool IsOpened() {return hFile!=FILE_BAD_HANDLE;};
     int64 FileLength();
     void SetHandleType(FILE_HANDLETYPE Type) {HandleType=Type;}
     FILE_HANDLETYPE GetHandleType() {return HandleType;}
@@ -99,6 +108,16 @@ class File
     void SetExceptions(bool Allow) {AllowExceptions=Allow;}
 #ifdef _WIN_ALL
     void RemoveSequentialFlag() {NoSequentialRead=true;}
+#endif
+#ifdef _UNIX
+    int GetFD()
+    {
+#ifdef FILE_USE_OPEN
+      return hFile;
+#else
+      return fileno(hFile);
+#endif
+    }
 #endif
 };
 

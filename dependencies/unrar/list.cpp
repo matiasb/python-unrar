@@ -18,6 +18,9 @@ void ListArchive(CommandData *Cmd)
   wchar ArcName[NM];
   while (Cmd->GetArcName(ArcName,ASIZE(ArcName)))
   {
+    if (Cmd->ManualPassword)
+      Cmd->Password.Clean(); // Clean user entered password before processing next archive.
+
     Archive Arc(Cmd);
 #ifdef _WIN_ALL
     Arc.RemoveSequentialFlag();
@@ -162,6 +165,10 @@ void ListArchive(CommandData *Cmd)
     }
   }
 
+  // Clean user entered password. Not really required, just for extra safety.
+  if (Cmd->ManualPassword)
+    Cmd->Password.Clean();
+
   if (ArcCount>1 && !Bare && !Technical)
   {
     wchar UnpSizeText[20],PackSizeText[20];
@@ -270,7 +277,27 @@ void ListFileHeader(Archive &Arc,FileHeader &hd,bool &TitleShown,bool Verbose,bo
         }
       mprintf(L"\n%12ls: %ls",St(MListType),Type);
       if (hd.RedirType!=FSREDIR_NONE)
-        mprintf(L"\n%12ls: %ls",St(MListTarget),hd.RedirName);
+        if (Format==RARFMT15)
+        {
+          char LinkTargetA[NM];
+          if (Arc.FileHead.Encrypted)
+          {
+            // Link data are encrypted. We would need to ask for password
+            // and initialize decryption routine to display the link target.
+            strncpyz(LinkTargetA,"*<-?->",ASIZE(LinkTargetA));
+          }
+          else
+          {
+            int DataSize=(int)Min(hd.PackSize,ASIZE(LinkTargetA)-1);
+            Arc.Read(LinkTargetA,DataSize);
+            LinkTargetA[DataSize > 0 ? DataSize : 0] = 0;
+          }
+          wchar LinkTarget[NM];
+          CharToWide(LinkTargetA,LinkTarget,ASIZE(LinkTarget));
+          mprintf(L"\n%12ls: %ls",St(MListTarget),LinkTarget);
+        }
+        else
+          mprintf(L"\n%12ls: %ls",St(MListTarget),hd.RedirName);
     }
     if (!hd.Dir)
     {
