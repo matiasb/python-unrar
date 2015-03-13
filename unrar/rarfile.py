@@ -121,6 +121,8 @@ class RarFile(object):
 
         # assert(archive.OpenResult == constants.SUCCESS)
         self.pwd = pwd
+        if self.pwd is not None:
+            unrarlib.RARSetPassword(handle, b(self.pwd))
         self.filelist = []
         self.NameToInfo = {}
         if archive.CmtState == constants.RAR_COMMENTS_SUCCESS:
