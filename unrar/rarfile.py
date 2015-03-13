@@ -95,9 +95,15 @@ class _ReadIntoMemory(object):
     def __init__(self):
         super(_ReadIntoMemory, self).__init__()
         self._data = None
+        self._missing_password = False
 
     def _callback(self, msg, user_data, p1, p2):
-        if msg == constants.UCM_PROCESSDATA:
+        if (msg == constants.UCM_NEEDPASSWORD or
+            msg == constants.UCM_NEEDPASSWORDW):
+            # This is a work around since libunrar doesn't
+            # properly return the error code when files are encrypted
+            self._missing_password = True
+        elif msg == constants.UCM_PROCESSDATA:
             if self._data is None:
                 self._data = b('')
             chunk = (ctypes.c_char * p2).from_address(p1).raw
@@ -105,6 +111,8 @@ class _ReadIntoMemory(object):
         return 1
 
     def get_bytes(self):
+        if self._missing_password:
+            raise RuntimeError('File is encrypted, password required for extraction')
         return io.BytesIO(self._data)
 
 
