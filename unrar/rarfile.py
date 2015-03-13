@@ -132,11 +132,19 @@ class RarFile(object):
 
     def _read_header(self, handle):
         """Read current member header into a RarInfo object."""
-        rarinfo = None
         header_data = unrarlib.RARHeaderDataEx()
-        res = unrarlib.RARReadHeaderEx(handle, ctypes.byref(header_data))
-        if res != constants.ERAR_END_ARCHIVE:
+        try:
+            res = unrarlib.RARReadHeaderEx(handle, ctypes.byref(header_data))
             rarinfo = RarInfo(header=header_data)
+        except unrarlib.ArchiveEnd:
+            return None
+        except unrarlib.MissingPassword:
+            raise RuntimeError("Archive is encrypted, password required")
+        except unrarlib.BadPassword:
+            raise RuntimeError("Bad password for Archive")
+        except unrarlib.UnrarException as e:
+            raise BadRarFile(str(e))
+
         return rarinfo
 
     def _process_current(self, handle, op, dest_path=None, dest_name=None):
@@ -164,7 +172,7 @@ class RarFile(object):
         """Close RAR archive file."""
         try:
             unrarlib.RARCloseArchive(handle)
-        except unrarlib.UnrarException:
+        except unrarlib.CloseError:
             raise BadRarFile("RAR archive close error.")
 
     def open(self, member, pwd=None):
@@ -202,8 +210,13 @@ class RarFile(object):
             if rarinfo is None:
                 data = None
 
-        except unrarlib.UnrarException:
-            raise BadRarFile("Bad RAR archive data.")
+        except unrarlib.BadDataError:
+            if password is not None:
+                raise RuntimeError("File CRC error or incorrect password")
+            else:
+                raise RuntimeError("File CRC error")
+        except unrarlib.UnrarException as e:
+            raise BadRarFile("Bad RAR archive data: %s" % str(e))
         finally:
             self._close(handle)
 
@@ -316,8 +329,12 @@ class RarFile(object):
                 else:
                     self._process_current(handle, constants.RAR_SKIP)
                 rarinfo = self._read_header(handle)
-        except unrarlib.UnrarException:
-            raise BadRarFile("Bad RAR archive data.")
+        except unrarlib.MissingPassword:
+            raise RuntimeError("File is encrypted, password required")
+        except unrarlib.BadPassword:
+            raise RuntimeError("Bad password for File")
+        except unrarlib.UnrarException as e:
+            raise BadRarFile("Bad RAR archive data: %s" % str(e))
         finally:
             self._close(handle)
 
