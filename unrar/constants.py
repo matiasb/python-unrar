@@ -69,6 +69,11 @@ ERAR_SMALL_BUF = 20
 ERAR_UNKNOWN = 21
 # Missing password error
 ERAR_MISSING_PASSWORD = 22
+# Reference error
+ERAR_EREFERENCE = 23
+# Bad password error
+ERAR_BAD_PASSWORD = 24
+
 
 #
 # Comments state
