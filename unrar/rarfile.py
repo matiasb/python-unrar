@@ -343,6 +343,8 @@ class RarFile(object):
             raise RuntimeError("File is encrypted, password required")
         except unrarlib.BadPassword:
             raise RuntimeError("Bad password for File")
+        except unrarlib.BadDataError:
+            raise RuntimeError("File CRC Error")
         except unrarlib.UnrarException as e:
             raise BadRarFile("Bad RAR archive data: %s" % str(e))
         finally:
