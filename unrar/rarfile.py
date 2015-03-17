@@ -295,7 +295,7 @@ class RarFile(object):
             members = self.namelist()
         self._extract_members(members, path, pwd, callback)
 
-    def _extract_members(self, members, targetpath, pwd, callback=None):
+    def _extract_members(self, members, targetpath, pwd, callback):
         """Extract the RarInfo objects 'members' to a physical
            file on the path targetpath.
         """
