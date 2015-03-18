@@ -220,6 +220,10 @@ class RarFile(object):
             if rarinfo is None:
                 data = None
 
+        except unrarlib.MissingPassword:
+            raise RuntimeError("File is encrypted, password required")
+        except unrarlib.BadPassword:
+            raise RuntimeError("Bad password for File")
         except unrarlib.BadDataError:
             if password is not None:
                 raise RuntimeError("File CRC error or incorrect password")
