@@ -73,6 +73,52 @@ def dostime_to_timetuple(dostime):
 class UnrarException(Exception):
     """Lib errors exception."""
 
+class ArchiveEnd(UnrarException):
+    """End of Archive event - code 10"""
+
+class NoMemoryError(UnrarException):
+    """No memory error - code 11"""
+
+class BadDataError(UnrarException):
+    """Bad data error - code 12"""
+
+class BadArchiveError(UnrarException):
+    """Bad archive error - code 13"""
+
+class UnknownFormatError(UnrarException):
+    """Unknown format error - code 14"""
+
+class OpenError(UnrarException):
+    """Open error - code 15"""
+
+class CreateError(UnrarException):
+    """Create error - code 16"""
+
+class CloseError(UnrarException):
+    """Close error - code 17"""
+
+class ReadError(UnrarException):
+    """Read error - code 18"""
+
+class WriteError(UnrarException):
+    """Write error - code 19"""
+
+class SmallBufError(UnrarException):
+    """Buffer too small error - code 20"""
+
+class UnknownError(UnrarException):
+    """Unknown error - code 21"""
+
+class MissingPassword(UnrarException):
+    """Missing password - code 22"""
+
+#ReferenceError is a built-in
+class RarReferenceError(UnrarException):
+    """Reference error - code 23"""
+
+class BadPassword(UnrarException):
+    """Bad password - code 24"""
+
 
 class _Structure(ctypes.Structure):
     """Customized ctypes Structure base class."""
@@ -167,36 +213,81 @@ def _check_open_result(res, func, args):
 
 
 def _check_readheader_result(res, func, args):
-    if res == constants.ERAR_BAD_DATA:
-        raise UnrarException("Bad header data.")
-    # res == SUCCESS | res == ERAR_END_ARCHIVE
-    return res
+    if res == constants.SUCCESS:
+        return res
+    elif res == constants.ERAR_END_ARCHIVE: #10
+        raise ArchiveEnd()
+    elif res == constants.ERAR_NO_MEMORY: #11
+        raise NoMemoryError("Not enough memory")
+    elif res == constants.ERAR_BAD_DATA: #12
+        raise BadDataError("Bad header data.")
+    elif res == constants.ERAR_BAD_ARCHIVE: #13
+        raise BadArchiveError("Not valid RAR archive")
+    elif res == constants.ERAR_UNKNOWN_FORMAT: #14
+        raise UnknownFormatError("Unknown archive format")
+    elif res == constants.ERAR_EOPEN: #15
+        raise OpenError("Volume open error")
+    elif res == constants.ERAR_ECREATE: #16
+        raise CreateError("File create error")
+    elif res == constants.ERAR_ECLOSE: #17
+        raise CloseError("File close error")
+    elif res == constants.ERAR_EREAD: #18
+        raise ReadError("Read error")
+    elif res == constants.ERAR_EWRITE: #19
+        raise WriteError("Write error")
+    elif res == constants.ERAR_SMALL_BUF: #20
+        raise SmallBufError("Buffer too small")
+    elif res == constants.ERAR_UNKNOWN: #21
+        raise UnknownError("Unknown error")
+    elif res == constants.ERAR_MISSING_PASSWORD: #22
+        raise MissingPassword("Password missing")
+    elif res == constants.ERAR_EREFERENCE: #23
+        raise RarReferenceError("Reference Error")
+    elif res == constants.ERAR_BAD_PASSWORD: #24
+        raise BadPassword("Bad password")
+    else:
+        raise UnrarException("Unknown Error")
 
 
 def _check_process_result(res, func, args):
-    if res == constants.ERAR_ECLOSE:
-        raise UnrarException("File close error")
-    elif res == constants.ERAR_BAD_DATA:
-        raise UnrarException("File CRC error")
-    elif res == constants.ERAR_BAD_ARCHIVE:
-        raise UnrarException("Not valid RAR archive")
-    elif res == constants.ERAR_UNKNOWN_FORMAT:
-        raise UnrarException("Unknown archive format")
-    elif res == constants.ERAR_EOPEN:
-        raise UnrarException("Volume open error")
-    elif res == constants.ERAR_ECREATE:
-        raise UnrarException("File create error")
-    elif res == constants.ERAR_EREAD:
-        raise UnrarException("Read error")
-    elif res == constants.ERAR_EWRITE:
-        raise UnrarException("Write error")
-    # res == SUCCESS | res == ERAR_END_ARCHIVE
-    return res
-
+    if res == constants.SUCCESS:
+        return res
+    elif res == constants.ERAR_END_ARCHIVE: #10
+        raise ArchiveEnd()
+    elif res == constants.ERAR_NO_MEMORY: #11
+        raise NoMemoryError("Not enough memory")
+    elif res == constants.ERAR_BAD_DATA: #12
+        raise BadDataError("File CRC error")
+    elif res == constants.ERAR_BAD_ARCHIVE: #13
+        raise BadArchive("Not valid RAR archive")
+    elif res == constants.ERAR_UNKNOWN_FORMAT: #14
+        raise UnknownFormat("Unknown archive format")
+    elif res == constants.ERAR_EOPEN: #15
+        raise OpenError("Volume open error")
+    elif res == constants.ERAR_ECREATE: #16
+        raise CreateError("File create error")
+    elif res == constants.ERAR_ECLOSE: #17
+        raise CloseError("File close error")
+    elif res == constants.ERAR_EREAD: #18
+        raise ReadError("Read error")
+    elif res == constants.ERAR_EWRITE: #19
+        raise WriteError("Write error")
+    elif res == constants.ERAR_SMALL_BUF: #20
+        raise SmallBufError("Buffer too small")
+    elif res == constants.ERAR_UNKNOWN: #21
+        raise UnknownError("Unknown Error")
+    elif res == constants.ERAR_MISSING_PASSWORD: #22
+        raise MissingPassword("Missing password")
+    elif res == constants.ERAR_EREFERENCE: #23
+        raise RarReferenceError("Reference Error")
+    elif res == constants.ERAR_BAD_PASSWORD: #24
+        raise BadPassword("Bad Password")
+    else:
+        raise UnrarException("Unknown Error")
 
 def _check_close_result(res, func, args):
     if res == constants.ERAR_ECLOSE:
-        raise UnrarException("Archive close error")
+        raise CloseError("Archive close error")
     # res == SUCCESS
     return res
 

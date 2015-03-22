@@ -95,9 +95,15 @@ class _ReadIntoMemory(object):
     def __init__(self):
         super(_ReadIntoMemory, self).__init__()
         self._data = None
+        self._missing_password = False
 
     def _callback(self, msg, user_data, p1, p2):
-        if msg == constants.UCM_PROCESSDATA:
+        if (msg == constants.UCM_NEEDPASSWORD or
+            msg == constants.UCM_NEEDPASSWORDW):
+            # This is a work around since libunrar doesn't
+            # properly return the error code when files are encrypted
+            self._missing_password = True
+        elif msg == constants.UCM_PROCESSDATA:
             if self._data is None:
                 self._data = b('')
             chunk = (ctypes.c_char * p2).from_address(p1).raw
@@ -105,6 +111,8 @@ class _ReadIntoMemory(object):
         return 1
 
     def get_bytes(self):
+        if self._missing_password:
+            raise RuntimeError('File is encrypted, password required for extraction')
         return io.BytesIO(self._data)
 
 
@@ -121,6 +129,8 @@ class RarFile(object):
 
         # assert(archive.OpenResult == constants.SUCCESS)
         self.pwd = pwd
+        if self.pwd is not None:
+            unrarlib.RARSetPassword(handle, b(self.pwd))
         self.filelist = []
         self.NameToInfo = {}
         if archive.CmtState == constants.RAR_COMMENTS_SUCCESS:
@@ -132,11 +142,19 @@ class RarFile(object):
 
     def _read_header(self, handle):
         """Read current member header into a RarInfo object."""
-        rarinfo = None
         header_data = unrarlib.RARHeaderDataEx()
-        res = unrarlib.RARReadHeaderEx(handle, ctypes.byref(header_data))
-        if res != constants.ERAR_END_ARCHIVE:
+        try:
+            res = unrarlib.RARReadHeaderEx(handle, ctypes.byref(header_data))
             rarinfo = RarInfo(header=header_data)
+        except unrarlib.ArchiveEnd:
+            return None
+        except unrarlib.MissingPassword:
+            raise RuntimeError("Archive is encrypted, password required")
+        except unrarlib.BadPassword:
+            raise RuntimeError("Bad password for Archive")
+        except unrarlib.UnrarException as e:
+            raise BadRarFile(str(e))
+
         return rarinfo
 
     def _process_current(self, handle, op, dest_path=None, dest_name=None):
@@ -164,7 +182,7 @@ class RarFile(object):
         """Close RAR archive file."""
         try:
             unrarlib.RARCloseArchive(handle)
-        except unrarlib.UnrarException:
+        except unrarlib.CloseError:
             raise BadRarFile("RAR archive close error.")
 
     def open(self, member, pwd=None):
@@ -202,8 +220,17 @@ class RarFile(object):
             if rarinfo is None:
                 data = None
 
-        except unrarlib.UnrarException:
-            raise BadRarFile("Bad RAR archive data.")
+        except unrarlib.MissingPassword:
+            raise RuntimeError("File is encrypted, password required")
+        except unrarlib.BadPassword:
+            raise RuntimeError("Bad password for File")
+        except unrarlib.BadDataError:
+            if password is not None:
+                raise RuntimeError("File CRC error or incorrect password")
+            else:
+                raise RuntimeError("File CRC error")
+        except unrarlib.UnrarException as e:
+            raise BadRarFile("Bad RAR archive data: %s" % str(e))
         finally:
             self._close(handle)
 
@@ -316,8 +343,14 @@ class RarFile(object):
                 else:
                     self._process_current(handle, constants.RAR_SKIP)
                 rarinfo = self._read_header(handle)
-        except unrarlib.UnrarException:
-            raise BadRarFile("Bad RAR archive data.")
+        except unrarlib.MissingPassword:
+            raise RuntimeError("File is encrypted, password required")
+        except unrarlib.BadPassword:
+            raise RuntimeError("Bad password for File")
+        except unrarlib.BadDataError:
+            raise RuntimeError("File CRC Error")
+        except unrarlib.UnrarException as e:
+            raise BadRarFile("Bad RAR archive data: %s" % str(e))
         finally:
             self._close(handle)
 

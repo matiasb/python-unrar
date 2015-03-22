@@ -141,17 +141,17 @@ class TestCorruptedRar(TestRarFile):
         self.assertEqual(self.rar.testrar(), 'test_file.txt')
 
     def test_extract(self):
-        with self.assertRaises(BadRarFile):
+        with self.assertRaises(RuntimeError):
             super(TestCorruptedRar, self).test_extract()
 
     def test_extractall(self):
-        with self.assertRaises(BadRarFile):
+        with self.assertRaises(RuntimeError):
             super(TestCorruptedRar, self).test_extractall()
 
     def test_extract_to_memory(self):
-        with self.assertRaises(BadRarFile):
+        with self.assertRaises(RuntimeError):
             super(TestCorruptedRar, self).test_extract_to_memory()
 
     def test_read_to_memory(self):
-        with self.assertRaises(BadRarFile):
+        with self.assertRaises(RuntimeError):
             super(TestCorruptedRar, self).test_read_to_memory()
