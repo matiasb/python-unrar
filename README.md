@@ -27,17 +27,18 @@ If you prefer not to install the library, you should make it "findable" by addin
 As an alternative, you can also set UNRAR_LIB_PATH variable in your environment to the library path and python-unrar will try to load the UnRAR library from there.
 
 
-Build and test python-unrar before installing (optional)
---------------------------------------------------------
+Testing without installing
+--------------------------
 
-Build with:
+You can build from source with:
 
     $ python setup.py build
 
-Then test with (plus the interactive example below):
+And then run a Python shell with unrar available:
 
     $ PYTHONPATH=`pwd`/build/lib python
 
+Or you could also directly add the `unrar` directory from this repo to your `PYTHONPATH`. In any case you will still need to make the unrar library available as mentioned above.
 
 Install python-unrar
 --------------------
