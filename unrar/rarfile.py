@@ -139,6 +139,12 @@ class RarFile(object):
             self.comment = None
         self._load_metadata(handle)
         self._close(handle)
+    
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        pass
 
     def _read_header(self, handle):
         """Read current member header into a RarInfo object."""
