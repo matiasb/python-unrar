@@ -1,3 +1,7 @@
+0.4: 2019/09/08
+
+    - Added the ability to use RarFile as a context manager.
+
 0.3: 2015/02/15
 
     - Added open/read methods to RarFile, extracting data into memory.
