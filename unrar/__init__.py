@@ -17,6 +17,6 @@
 
 __author__ = 'Matias Bordese'
 __email__ = 'mbordese@gmail.com'
-__version__ = '0.3'
+__version__ = '0.4'
 
 VERSION = __version__

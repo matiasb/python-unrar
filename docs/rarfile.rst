@@ -60,6 +60,10 @@ RarFile Objects
    Open a RAR file, where *file* should be a path to a file (a string).   The *mode* parameter should be ``'r'`` to read an existing
    file (only allowed mode at the moment).
 
+   RarFile is also a context manager and therefore supports the with statement.
+
+.. versionadded:: 0.4
+    Added the ability to use RarFile as a context manager.
 
 .. method:: RarFile.getinfo(name)
 
