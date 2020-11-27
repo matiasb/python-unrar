@@ -52,6 +52,35 @@ else:
     lib_path = lib_path or find_library("unrar")
     if lib_path:
         unrarlib = ctypes.cdll.LoadLibrary(lib_path)
+    else:
+        # Maybe we're on MacOS. Check if library is installed by Homebrew.
+        if platform.system() == "Darwin":
+            dylib_path = ""
+            brew_unrar_path = "/usr/local/Cellar/unrar/"
+            latest_tested = "5.2.6"
+            lib_filename = "libunrar.dylib"
+
+            # Is latest tested version installed?
+            latest_tested_path = f"{brew_unrar_path}{latest_tested}/lib/{lib_filename}"
+            if os.path.isfile(latest_tested_path):
+                dylib_path = latest_tested_path
+                unrarlib = ctypes.cdll.LoadLibrary(dylib_path)
+
+            # Check for other versions
+            version_dirs = []
+            for root, dirs, files in os.walk(brew_unrar_path):
+                if lib_filename in files:
+                    dirname = os.path.dirname(root)
+                    version_dirs.append(os.path.split(dirname)[1:][0])
+
+            # Wrong version(s) installed
+            if version_dirs is not None:
+                if unrarlib is None:
+                    raise LookupError(
+                    f"libunrar.dylib must be version {latest_tested}. "
+                    f"Installed versions: {version_dirs}"
+                    )
+
 
 if unrarlib is None:
     raise LookupError("Couldn't find path to unrar library.")
