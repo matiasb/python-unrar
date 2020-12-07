@@ -20,6 +20,7 @@ import os
 import platform
 
 from ctypes.util import find_library
+from packaging import version
 
 from unrar import constants
 
@@ -57,29 +58,21 @@ else:
         if platform.system() == "Darwin":
             dylib_path = ""
             brew_unrar_path = "/usr/local/Cellar/unrar/"
-            latest_tested = "5.2.6"
             lib_filename = "libunrar.dylib"
+            version_dirs_parsed = []
 
-            # Is latest tested version installed?
-            latest_tested_path = f"{brew_unrar_path}{latest_tested}/lib/{lib_filename}"
-            if os.path.isfile(latest_tested_path):
-                dylib_path = latest_tested_path
+            if os.path.isdir(brew_unrar_path):
+                # Find latest installed version
+                for version_dirs in next(os.walk(brew_unrar_path))[1]:
+                    version_dirs_parsed.append(version.parse(version_dirs))
+
+                latest_version = max(version_dirs_parsed)
+                dylib_path = f"{brew_unrar_path}{latest_version}/lib/{lib_filename}"
                 unrarlib = ctypes.cdll.LoadLibrary(dylib_path)
-
-            # Check for other versions
-            version_dirs = []
-            for root, dirs, files in os.walk(brew_unrar_path):
-                if lib_filename in files:
-                    dirname = os.path.dirname(root)
-                    version_dirs.append(os.path.split(dirname)[1:][0])
-
-            # Wrong version(s) installed
-            if version_dirs is not None:
-                if unrarlib is None:
-                    raise LookupError(
-                    f"libunrar.dylib must be version {latest_tested}. "
-                    f"Installed versions: {version_dirs}"
-                    )
+            else:
+                raise LookupError(f"Couldn't locate libunrar.dylib. "
+                "Install it using Homebrew (https://brew.sh/), or build it yourself (https://www.rarlab.com/rar_add.htm)."
+                )
 
 
 if unrarlib is None:
