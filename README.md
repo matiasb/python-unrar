@@ -18,9 +18,11 @@ and compile (you may need to rename the makefile that you want to use according 
     $ make lib
     $ make install-lib
 
-(latest tested sources: http://www.rarlab.com/rar/unrarsrc-5.2.6.tar.gz)
+(latest tested sources: https://www.rarlab.com/rar/unrarsrc-6.0.3.tar.gz)
 
 For Windows you can also download the already compiled library (http://www.rarlab.com/rar/UnRARDLL.exe).
+
+For MacOS you should be able to follow the same guidelines for building from source, or you can get it installed using `brew`.
 
 If you prefer not to install the library, you should make it "findable" by adding the library file to a directory where libraries are searched (or change required environment variable).
 
