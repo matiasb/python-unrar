@@ -63,8 +63,7 @@ else:
             # find latest available version
             latest_version = max(
                 version.parse(v) for v in os.listdir(BREW_UNRAR_PATH))
-            lib_path = "{}{}/lib/{}".format(
-                BREW_UNRAR_PATH, latest_version, LIB_FILENAME)
+            lib_path = f"{BREW_UNRAR_PATH}{latest_version}/lib/{LIB_FILENAME}"
             unrarlib = ctypes.cdll.LoadLibrary(lib_path)
         else:
             raise LookupError(

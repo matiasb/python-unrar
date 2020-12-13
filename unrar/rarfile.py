@@ -139,7 +139,7 @@ class RarFile(object):
             self.comment = None
         self._load_metadata(handle)
         self._close(handle)
-    
+
     def __enter__(self):
         return self
 
@@ -388,7 +388,7 @@ def main(args=None):
         rf = RarFile(args[1], 'r')
         err = rf.testrar()
         if err:
-            print("The following enclosed file is corrupted: {!r}".format(err))
+            print(f"The following enclosed file is corrupted: {err!r}")
         print("Done testing")
     elif cmd == '-e':
         # extract
