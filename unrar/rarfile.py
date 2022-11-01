@@ -137,8 +137,13 @@ class RarFile(object):
             self.comment = archive.CmtBuf.value
         else:
             self.comment = None
-        self._load_metadata(handle)
-        self._close(handle)
+            
+        try:
+          self._load_metadata(handle)
+        except Exception as e:
+          raise e
+        finally:
+          self._close(handle)
     
     def __enter__(self):
         return self
