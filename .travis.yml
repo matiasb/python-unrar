@@ -6,3 +6,5 @@ python:
   - "3.10"
   - "3.11"
 script: ./run_tests.sh
+
+dist: jammy
