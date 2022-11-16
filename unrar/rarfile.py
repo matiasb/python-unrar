@@ -34,9 +34,17 @@ if sys.version < '3':
         return x
 else:
     def b(x):
-        if x is not None:
-            # encode using DOS OEM standard
-            return x.encode('cp437')
+        if isinstance(x, str):
+            try:
+                if platform.system() == 'Windows':
+                    return x.encode('cp' + str(ctypes.windll.kernel32.GetACP()))
+                else:
+                    return x.encode('utf-8')
+            except UnicodeEncodeError:
+                return x.encode('cp437')
+        else:
+            # assume None or bytes
+            return x
 
 
 class BadRarFile(Exception):
@@ -128,6 +136,10 @@ class RarFile(object):
         handle = self._open(archive)
 
         # assert(archive.OpenResult == constants.SUCCESS)
+        # On windows, unRAR use system codepage to convert to wide char
+        # On linux, assume utf-8 and convert to wide char
+        # Users also can pass bytes object directly if require
+        # TODO: handle password in callback
         self.pwd = pwd
         if self.pwd is not None:
             unrarlib.RARSetPassword(handle, b(self.pwd))
