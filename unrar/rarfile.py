@@ -126,6 +126,8 @@ class RarFile(object):
 
         archive = unrarlib.RAROpenArchiveDataEx(filename, mode=mode)
         handle = self._open(archive)
+        if archive.Flags & 0x01:
+            raise RuntimeError("Archive is part of a volume")
 
         # assert(archive.OpenResult == constants.SUCCESS)
         self.pwd = pwd
