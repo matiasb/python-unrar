@@ -308,7 +308,7 @@ class RarFile(object):
             self._close(handle)
         return error
 
-    def extract(self, member, path=None, pwd=None):
+    def extract(self, member, path=None, pwd=None, callback=None):
         """Extract a member from the archive to the current working directory,
            using its full name. Its file information is extracted as accurately
            as possible. `member' may be a filename or a RarInfo object. You can
@@ -320,10 +320,10 @@ class RarFile(object):
         if path is None:
             path = os.getcwd()
 
-        self._extract_members([member], path, pwd)
+        self._extract_members([member], path, pwd, callback)
         return os.path.join(path, member)
 
-    def extractall(self, path=None, members=None, pwd=None):
+    def extractall(self, path=None, members=None, pwd=None, callback=None):
         """Extract all members from the archive to the current working
            directory. `path' specifies a different directory to extract to.
            `members' is optional and must be a subset of the list returned
@@ -331,15 +331,19 @@ class RarFile(object):
         """
         if members is None:
             members = self.namelist()
-        self._extract_members(members, path, pwd)
+        self._extract_members(members, path, pwd, callback)
 
-    def _extract_members(self, members, targetpath, pwd):
+    def _extract_members(self, members, targetpath, pwd, callback):
         """Extract the RarInfo objects 'members' to a physical
            file on the path targetpath.
         """
         archive = unrarlib.RAROpenArchiveDataEx(
             self.filename, mode=constants.RAR_OM_EXTRACT)
         handle = self._open(archive)
+
+        if callback is not None:
+            c_callback = unrarlib.UNRARCALLBACK(callback)
+            unrarlib.RARSetCallback(handle, c_callback, 0)
 
         password = pwd or self.pwd
         if password is not None:
